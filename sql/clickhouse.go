@@ -1,0 +1,62 @@
+package sql
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/Servicewall/go-cube/config"
+)
+
+type Client struct {
+	url  string
+	user string
+	key  string
+	http *http.Client
+}
+
+func NewClient(cfg *config.ClickHouseConfig) (*Client, error) {
+	addr := cfg.Hosts[0]
+	if !strings.HasPrefix(addr, "http") {
+		addr = "http://" + addr
+	}
+	return &Client{
+		url:  addr + "?default_format=JSON&database=" + cfg.Database,
+		user: cfg.Username,
+		key:  cfg.Password,
+		http: &http.Client{Timeout: 30 * time.Second},
+	}, nil
+}
+
+func (c *Client) Query(ctx context.Context, query string, args ...interface{}) ([]map[string]interface{}, error) {
+	for _, arg := range args {
+		val := fmt.Sprintf("%v", arg)
+		if s, ok := arg.(string); ok {
+			val = "'" + strings.ReplaceAll(s, "'", "''") + "'"
+		}
+		query = strings.Replace(query, "?", val, 1)
+	}
+
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.url, strings.NewReader(query))
+	if c.user != "" {
+		req.Header.Set("X-ClickHouse-User", c.user)
+		req.Header.Set("X-ClickHouse-Key", c.key)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var res struct{ Data []map[string]interface{} }
+	return res.Data, json.NewDecoder(resp.Body).Decode(&res)
+}
+
+func (c *Client) Ping(ctx context.Context) error {
+	_, err := c.Query(ctx, "SELECT 1")
+	return err
+}

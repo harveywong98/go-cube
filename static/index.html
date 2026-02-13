@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据溯源平台 - Sheikah AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&display=swap');
+        
+        body {
+            font-family: 'Inter', "Microsoft YaHei", sans-serif;
+            background-color: #0d1117;
+            color: #d1d5db;
+            font-size: 12px;
+        }
+
+        .compact-table th, .compact-table td {
+            padding: 4px 8px;
+            line-height: 1.1;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .tree-sidebar {
+            background: #0d1117;
+            width: 280px;
+            transition: width 0.3s ease;
+            border-right: 1px solid #30363d;
+        }
+
+        .tree-sidebar.collapsed {
+            width: 32px;
+            overflow: hidden;
+            border-right: 1px solid #30363d;
+        }
+
+        .tree-sidebar.collapsed .sidebar-content {
+            display: none;
+        }
+
+        .sidebar-icon-bar {
+            display: none;
+        }
+
+        .tree-sidebar.collapsed .sidebar-icon-bar {
+            display: flex;
+        }
+
+        .filter-node {
+            padding: 6px 12px;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .filter-label {
+            font-size: 10px;
+            color: #8b949e;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .filter-input {
+            background: #010409;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            padding: 4px 8px;
+            width: 100%;
+            color: #c9d1d9;
+            font-size: 11px;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        .filter-section {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #21262d;
+        }
+
+        .filter-section-header {
+            padding: 8px 0;
+            margin-bottom: 8px;
+        }
+
+        .details-row {
+            background: #161b22;
+            display: none;
+        }
+        
+        .details-row.active {
+            display: table-row;
+        }
+        
+        .tab {
+            display: flex;
+            height: 100%;
+            padding: 0 16px;
+            align-items: center;
+            gap: 8px;
+            color: #8b949e;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-right: 1px solid #30363d;
+        }
+
+        .tab:hover {
+            background: #161b22;
+            color: #c9d1d9;
+        }
+
+        .tab.active {
+            background: #161b22;
+            color: #58a6ff;
+            border-top: 2px solid #58a6ff;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+        
+        .code-block {
+            background: #000;
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #8b949e;
+            border: 1px solid #30363d;
+        }
+
+        .method-tag {
+            font-size: 9px;
+            font-weight: 800;
+            padding: 1px 4px;
+            border-radius: 2px;
+        }
+
+        .status-tag {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            border: 1px solid transparent;
+        }
+
+        .risk-tag {
+            background: rgba(248, 81, 73, 0.1);
+            color: #f85149;
+            border: 1px solid rgba(248, 81, 73, 0.2);
+            font-size: 9px;
+            padding: 0 4px;
+            border-radius: 2px;
+        }
+
+        .sens-tag {
+            background: rgba(251, 191, 36, 0.1);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.2);
+            font-size: 9px;
+            padding: 0 4px;
+            border-radius: 2px;
+        }
+
+        .ai-panel {
+            background: #0d1117;
+            width: 320px;
+            transition: width 0.3s ease;
+            border-left: 1px solid #30363d;
+        }
+
+        .ai-panel.collapsed {
+            width: 32px;
+            overflow: hidden;
+            border-left: 1px solid #30363d;
+        }
+
+        .ai-panel.collapsed .ai-content {
+            display: none;
+        }
+
+        .ai-icon-bar {
+            display: none;
+        }
+
+        .ai-panel.collapsed .ai-icon-bar {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <!-- 左侧查询资源管理器 -->
+    <aside id="sidebar" class="tree-sidebar flex flex-row relative">
+        <!-- 收起状态的图标栏 -->
+        <div class="sidebar-icon-bar w-8 h-full bg-[#0d1117] border-r border-[#30363d] flex flex-col items-center py-2 space-y-4">
+            <button onclick="toggleSidebar()" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-colors" title="展开查询面板">
+                <i class="fa-solid fa-filter text-xs"></i>
+            </button>
+        </div>
+
+        <!-- 正常内容区 -->
+        <div class="sidebar-content flex-1 flex flex-col min-w-0">
+        <div class="p-3 border-b border-[#30363d] flex items-center justify-between bg-[#161b22]">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-filter text-blue-400"></i>
+                <span class="font-bold text-xs tracking-tight text-slate-200 uppercase">查询条件</span>
+            </div>
+        </div>
+
+        <!-- 执行按钮放在最上面 -->
+        <div class="p-3 border-b border-[#30363d] space-y-2">
+            <button id="execute-btn" onclick="executeQuery()" class="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed text-white py-2 rounded text-xs font-bold transition-colors shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-play"></i> 执行溯源查询
+            </button>
+            <button onclick="resetAllFilters()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rotate-left"></i> 重置过滤条件
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+            <!-- 时间范围 -->
+            <div class="filter-node">
+                <div class="filter-label">时间范围 (ts)</div>
+                <select id="time-range-select" class="filter-input mb-2">
+                    <option value="今天" selected>今天</option>
+                    <option value="最近 15 分钟">最近 15 分钟</option>
+                    <option value="最近 1 小时">最近 1 小时</option>
+                    <option value="最近 24 小时">最近 24 小时</option>
+                    <option value="最近 7 天">最近 7 天</option>
+                </select>
+            </div>
+
+            <!-- 返回记录数 -->
+            <div class="filter-node">
+                <div class="filter-label">返回记录数</div>
+                <select id="limit-input" class="filter-input">
+                    <option value="50" selected>50 条</option>
+                    <option value="100">100 条</option>
+                    <option value="200">200 条</option>
+                    <option value="500">500 条</option>
+                </select>
+            </div>
+
+            <!-- 表达式过滤 -->
+            <div class="filter-node">
+                <div class="filter-label">过滤表达式</div>
+                <textarea id="filter-expr" class="filter-input font-mono text-[11px]" rows="3" placeholder="ip contains '192.168' and result = '保护' and risk > 50"></textarea>
+                <div id="expr-hint" class="mt-2 text-[10px] text-slate-500"></div>
+                <div id="expr-debug" class="mt-1 text-[9px] text-slate-600 font-mono break-all"></div>
+            </div>
+
+            <!-- 表达式帮助 -->
+            <div class="filter-section">
+                <div class="filter-section-header">
+                    <span class="font-bold text-[10px] tracking-tight text-slate-400 uppercase">可用字段</span>
+                </div>
+                <div class="px-3 pb-3">
+                    <div class="code-block text-[9px] leading-relaxed text-slate-500">
+ip, city, uid, sid, host, url, method, status<br>
+result, risk, rule, asset<br>
+<span class="text-blue-400">= != > < >= <= contains starts ends</span><br>
+<span class="text-green-400">and or ()</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab专用过滤提示 -->
+            <div id="sensitive-filters" class="filter-section hidden">
+                <div class="filter-section-header">
+                    <span class="font-bold text-xs tracking-tight text-blue-400 uppercase">敏感数据过滤</span>
+                </div>
+                <div class="px-3 pb-3 text-[10px] text-slate-500">
+                    默认显示有敏感数据的记录，可使用表达式进一步过滤
+                </div>
+            </div>
+
+            <div id="file-filters" class="filter-section hidden">
+                <div class="filter-section-header">
+                    <span class="font-bold text-xs tracking-tight text-green-400 uppercase">文件传输过滤</span>
+                </div>
+                <div class="px-3 pb-3 text-[10px] text-slate-500">
+                    默认显示有文件名的记录，可使用表达式进一步过滤
+                </div>
+            </div>
+        </div>
+        </div>
+    </aside>
+
+    <!-- 主数据视图区 -->
+    <main class="flex-1 flex flex-col min-w-0 bg-[#0d1117]">
+        <!-- TAB 标签页 -->
+        <div class="h-10 bg-[#0d1117] border-b border-[#30363d] flex items-center shrink-0">
+            <div class="tab active" data-tab="access" onclick="switchTab('access')">
+                <i class="fa-solid fa-list-ul text-[12px]"></i>
+                <span class="text-xs font-bold">访问记录</span>
+            </div>
+            <div class="tab" data-tab="sensitive" onclick="switchTab('sensitive')">
+                <i class="fa-solid fa-shield-heart text-[12px]"></i>
+                <span class="text-xs font-bold">敏感数据</span>
+            </div>
+            <div class="tab" data-tab="file" onclick="switchTab('file')">
+                <i class="fa-solid fa-file-arrow-up text-[12px]"></i>
+                <span class="text-xs font-bold">文件传输</span>
+            </div>
+        </div>
+
+        <!-- 面包屑与快捷工具 -->
+        <header class="h-8 border-b border-[#30363d] flex items-center justify-between px-4 shrink-0 bg-[#0d1117]">
+            <div class="flex items-center gap-2 text-[10px] text-slate-500 mono">
+                <span class="text-blue-500 uppercase font-bold">SELECT</span> * <span class="text-blue-500 uppercase font-bold">FROM</span> <span id="query-table">AccessView</span> <span class="text-blue-500 uppercase font-bold">WHERE</span> ts > <span class="text-green-500" id="query-time">now()-15m</span>
+                <span id="query-expr" class="text-yellow-500"></span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="record-stats" class="text-[10px] text-slate-500">点击「执行溯源查询」加载数据</span>
+                <div class="h-4 w-px bg-[#30363d]"></div>
+                <button class="text-slate-400 hover:text-slate-200 text-[11px] opacity-50 cursor-not-allowed" disabled><i class="fa-solid fa-download"></i> CSV</button>
+                <button class="text-slate-400 hover:text-slate-200 text-[11px]" onclick="openColumnSettings()"><i class="fa-solid fa-table-columns"></i> 列设置</button>
+        <button class="text-slate-400 hover:text-slate-200 text-[11px]" onclick="clearColumnSettings()" title="清除所有列设置，使用默认配置"><i class="fa-solid fa-refresh"></i> 重置</button>
+            </div>
+        </header>
+
+        <!-- 数据表格 - 访问记录 -->
+        <div id="table-access" class="tab-content flex-1 overflow-auto">
+            <table class="w-full compact-table text-left border-collapse">
+                <thead id="access-thead" class="bg-[#161b22] sticky top-0 z-10 border-b border-[#30363d]">
+                    <tr class="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
+                        <th class="w-6"></th>
+                        <th class="w-32">时间 (ts)</th>
+                        <th class="w-32">源 IP & 地理位置</th>
+                        <th class="w-16">方法</th>
+                        <th class="w-40">域名 (Host)</th>
+                        <th>URL 路径 & 业务</th>
+                        <th class="w-16">状态</th>
+                        <th class="w-20">处理结果</th>
+                        <th class="w-24">命中规则</th>
+                        <th class="w-8"></th>
+                    </tr>
+                </thead>
+                <tbody id="access-table-body" class="text-[12px] mono">
+                    <!-- 动态填充 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 数据表格 - 敏感数据 -->
+        <div id="table-sensitive" class="tab-content flex-1 overflow-auto hidden">
+            <table class="w-full compact-table text-left border-collapse">
+                <thead id="sensitive-thead" class="bg-[#161b22] sticky top-0 z-10 border-b border-[#30363d]">
+                    <tr class="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
+                        <th class="w-6"></th>
+                        <th class="w-32">时间</th>
+                        <th class="w-32">用户标识</th>
+                        <th class="w-32">源 IP</th>
+                        <th>访问路径</th>
+                        <th class="w-40">敏感数据类型</th>
+                        <th class="w-24">敏感数量</th>
+                        <th class="w-20">敏感得分</th>
+                        <th class="w-16">处理</th>
+                    </tr>
+                </thead>
+                <tbody id="sensitive-table-body" class="text-[12px] mono">
+                    <!-- 动态填充 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 数据表格 - 文件传输 -->
+        <div id="table-file" class="tab-content flex-1 overflow-auto hidden">
+            <table class="w-full compact-table text-left border-collapse">
+                <thead id="file-thead" class="bg-[#161b22] sticky top-0 z-10 border-b border-[#30363d]">
+                    <tr class="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
+                        <th class="w-6"></th>
+                        <th class="w-32">时间</th>
+                        <th class="w-32">用户标识</th>
+                        <th class="w-16">类型</th>
+                        <th>文件名 / URL</th>
+                        <th class="w-24">文件类型</th>
+                        <th class="w-16">大小</th>
+                        <th class="w-40">敏感类型</th>
+                        <th class="w-16">处理</th>
+                    </tr>
+                </thead>
+                <tbody id="file-table-body" class="text-[12px] mono">
+                    <!-- 动态填充 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer class="h-6 bg-[#0d1117] border-t border-[#30363d] px-4 flex items-center justify-between text-[10px] text-slate-500 mono">
+            <div class="flex gap-4">
+                <span class="flex items-center gap-1"><i class="fa-solid fa-circle text-[6px] text-green-500"></i> ClickHouse.AccessView</span>
+                <span class="flex items-center gap-1"><i class="fa-solid fa-bolt"></i> 实时: 120 req/s</span>
+            </div>
+            <div class="flex gap-4 items-center">
+                <span id="mode-indicator">模式: 访问记录</span>
+                <span class="bg-blue-600 text-white px-1.5 py-0.5 rounded-sm">QUERY</span>
+            </div>
+        </footer>
+    </main>
+
+    <!-- 右侧 AI 面板 -->
+    <aside id="ai-panel" class="ai-panel flex flex-row relative shrink-0">
+        <!-- 正常内容区 -->
+        <div class="ai-content flex-1 flex flex-col h-full overflow-hidden min-w-0">
+            <div class="p-3 border-b border-[#30363d] flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles text-blue-400"></i>
+                <span class="font-bold text-[10px] uppercase tracking-wider text-slate-300">AI 智能分析</span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-3 space-y-4">
+                <div class="text-center py-8 text-slate-500">
+                    <i class="fa-solid fa-robot text-3xl mb-3 text-slate-600"></i>
+                    <div class="text-xs">AI 分析功能开发中</div>
+                    <div class="text-[10px] text-slate-600 mt-1">查询数据后将显示智能分析结果</div>
+                </div>
+            </div>
+
+            <div class="p-2 border-t border-[#30363d] bg-[#0d1117]">
+                <div class="relative">
+                    <input type="text" placeholder="分析当前数据..." class="w-full bg-[#010409] border border-[#30363d] rounded px-3 py-1 text-[10px] focus:outline-none focus:border-blue-500/50 opacity-50" disabled>
+                    <button class="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 opacity-50" disabled><i class="fa-solid fa-paper-plane text-[9px]"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收起状态的图标栏 -->
+        <div class="ai-icon-bar w-8 h-full bg-[#0d1117] border-l border-[#30363d] flex flex-col items-center py-2">
+            <button onclick="toggleAIPanel()" class="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-colors" title="展开AI面板">
+                <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+            </button>
+        </div>
+    </aside>
+
+    <!-- 列设置弹窗 -->
+    <div id="column-settings-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="bg-[#0d1117] border border-[#30363d] rounded-lg w-[600px] max-h-[80vh] flex flex-col shadow-2xl">
+            <!-- 弹窗头部 -->
+            <div class="flex items-center justify-between p-4 border-b border-[#30363d]">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-table-columns text-blue-400"></i>
+                    <span class="font-bold text-sm text-slate-200">列设置</span>
+                    <span id="current-tab-name" class="text-xs text-slate-500 bg-[#161b22] px-2 py-1 rounded"></span>
+                </div>
+                <button onclick="closeColumnSettings()" class="text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+
+            <!-- 弹窗内容 -->
+            <div class="flex-1 overflow-y-auto p-4">
+                <div id="column-list" class="space-y-2">
+                    <!-- 列选项将动态生成 -->
+                </div>
+            </div>
+
+            <!-- 弹窗底部 -->
+            <div class="flex items-center justify-between p-4 border-t border-[#30363d]">
+                <div class="flex gap-2">
+                    <button onclick="selectAllColumns()" class="text-xs bg-[#161b22] hover:bg-[#21262d] text-slate-300 px-3 py-1.5 rounded border border-[#30363d]">
+                        全选
+                    </button>
+                    <button onclick="deselectAllColumns()" class="text-xs bg-[#161b22] hover:bg-[#21262d] text-slate-300 px-3 py-1.5 rounded border border-[#30363d]">
+                        全不选
+                    </button>
+                    <button onclick="resetToDefault()" class="text-xs bg-[#161b22] hover:bg-[#21262d] text-slate-300 px-3 py-1.5 rounded border border-[#30363d]">
+                        重置默认
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeColumnSettings()" class="text-xs bg-[#21262d] hover:bg-[#30363d] text-slate-300 px-3 py-1.5 rounded">
+                        取消
+                    </button>
+                    <button onclick="saveColumnSettings()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded">
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 模块 -->
+    <script src="js/config.js"></script>
+    <script src="js/cube-client.js"></script>
+    <script src="js/query-builder.js"></script>
+    <script src="js/column-settings.js"></script>
+    <script src="js/table-renderer.js"></script>
+
+    <script>
+        // 初始化全局实例
+        const cubeClient = new CubeClient();
+        const queryBuilder = new QueryBuilder();
+        const tableRenderer = new TableRenderer();
+        
+        // 设置全局引用
+        window.tableRenderer = tableRenderer;
+        
+        // 初始化表格头部
+        setTimeout(() => {
+            // 确保columnSettings的currentTab与当前活跃tab同步
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            window.columnSettings.currentTab = activeTab;
+            window.tableRenderer.currentTab = activeTab;
+            window.tableRenderer.updateCurrentTable();
+            window.tableRenderer.updateTableHeader();
+            
+            // 初始化表达式过滤
+            initExpressionFilter();
+
+            // 初始化过滤区域
+            switchFilterSection(activeTab);
+        }, 100);
+
+        // 初始化表达式过滤
+        function initExpressionFilter() {
+            const exprInput = document.getElementById('filter-expr');
+            if (!exprInput) return;
+
+            let debounceTimer;
+            exprInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    queryBuilder.updateHint(this.value);
+                }, 200);
+            });
+
+            // 初始提示
+            queryBuilder.updateHint('');
+        }
+
+
+
+        // 执行查询
+        async function executeQuery() {
+            const btn = document.getElementById('execute-btn');
+            const statsEl = document.getElementById('record-stats');
+            const startTime = performance.now();
+
+            // 更新按钮状态
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 查询中...';
+            
+            // 显示加载状态
+            tableRenderer.showLoading();
+
+            try {
+                // 获取当前活跃的tab
+                const activeTab = document.querySelector('.tab.active').dataset.tab;
+                
+                // 构建查询参数（传递当前tab以应用默认过滤）
+                const params = queryBuilder.build(activeTab);
+                
+                // 更新 SQL 预览
+                updateQueryPreview(params);
+
+                // 根据tab类型调用不同的API
+                let records;
+                if (activeTab === 'access') {
+                    records = await cubeClient.getAccessRecords({...params, viewType: 'access'});
+                } else if (activeTab === 'sensitive') {
+                    // 敏感数据使用相同的AccessView，但通过列配置过滤
+                    records = await cubeClient.getAccessRecords({...params, viewType: 'sensitive'});
+                } else if (activeTab === 'file') {
+                    // 文件传输使用相同的AccessView，但通过列配置过滤
+                    records = await cubeClient.getAccessRecords({...params, viewType: 'file'});
+                }
+                
+                // 计算耗时
+                const duration = (performance.now() - startTime).toFixed(1);
+                
+                // 渲染数据
+                tableRenderer.renderRecords(records);
+                
+                // 更新统计信息
+                statsEl.textContent = `找到 ${records.length} 条匹配记录 (耗时 ${duration}ms)`;
+                statsEl.className = 'text-[10px] text-green-400';
+                
+            } catch (error) {
+                console.error('查询失败:', error);
+                tableRenderer.showError('查询失败: ' + error.message);
+                statsEl.textContent = '查询失败';
+                statsEl.className = 'text-[10px] text-red-400';
+            } finally {
+                // 恢复按钮状态
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> 执行溯源查询';
+            }
+        }
+
+        // 更新查询预览
+        function updateQueryPreview(params) {
+            document.getElementById('query-time').textContent = CONFIG.TIME_RANGE_DISPLAY[params.timeRange] || params.timeRange;
+            const exprEl = document.getElementById('query-expr');
+            if (exprEl) {
+                exprEl.textContent = params.expression ? ` AND ${params.expression}` : '';
+            }
+        }
+
+        // 切换侧边栏
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+
+        // 切换 AI 面板
+        function toggleAIPanel() {
+            const panel = document.getElementById('ai-panel');
+            panel.classList.toggle('collapsed');
+        }
+
+        // 切换 Tab
+        function switchTab(tabName) {
+            // 更新 TAB 样式
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            // 切换表格内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(`table-${tabName}`).classList.remove('hidden');
+
+            // 更新状态栏
+            const tabConfig = CONFIG.TAB_CONFIG[tabName];
+            if (tabConfig) {
+                document.getElementById('mode-indicator').textContent = `模式: ${tabConfig.text}`;
+                document.getElementById('query-table').textContent = tabConfig.table;
+            }
+            
+            // 切换过滤区域
+            switchFilterSection(tabName);
+
+            // 切换表格渲染器
+            if (window.tableRenderer) {
+                window.tableRenderer.switchTab(tabName);
+            }
+        }
+
+        // 切换过滤区域显示
+        function switchFilterSection(tabName) {
+            const sensitiveFilters = document.getElementById('sensitive-filters');
+            const fileFilters = document.getElementById('file-filters');
+
+            // 隐藏所有专用过滤区域
+            if (sensitiveFilters) sensitiveFilters.classList.add('hidden');
+            if (fileFilters) fileFilters.classList.add('hidden');
+
+            // 根据tab显示相应的过滤区域
+            if (tabName === 'sensitive') {
+                if (sensitiveFilters) sensitiveFilters.classList.remove('hidden');
+            } else if (tabName === 'file') {
+                if (fileFilters) fileFilters.classList.remove('hidden');
+            }
+        }
+
+        // 展开/收起详情行 (供 table-renderer.js 使用)
+        function toggleDetails(recId) {
+            const detailsRow = document.getElementById(`${recId}-details`);
+            const caret = document.getElementById(`caret-${recId}`);
+            
+            if (detailsRow) {
+                if (detailsRow.classList.contains('active')) {
+                    detailsRow.classList.remove('active');
+                    if (caret) caret.style.transform = 'rotate(0deg)';
+                } else {
+                    detailsRow.classList.add('active');
+                    if (caret) caret.style.transform = 'rotate(90deg)';
+                }
+            }
+        }
+
+        function clearColumnSettings() {
+            window.columnSettings.clearAllSettings();
+            window.tableRenderer.updateCurrentTable();
+            window.tableRenderer.updateTableHeader();
+        }
+
+        function resetAllFilters() {
+            queryBuilder.reset();
+        }
+
+        // 页面加载完成后自动执行一次查询
+        document.addEventListener('DOMContentLoaded', () => {
+            // 延迟 500ms 确保所有资源加载完成
+            setTimeout(() => {
+                executeQuery();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

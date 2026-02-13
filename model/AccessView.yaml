@@ -1,0 +1,268 @@
+cube:
+  name: AccessView
+  sql_table: default.access
+  
+  dimensions:
+    id:
+      sql: id
+      type: string
+      primary_key: true
+      title: ID
+    
+    ts:
+      sql: ts
+      type: time
+      title: 时间
+    
+    tsMs:
+      sql: ts_ms
+      type: number
+      title: 时间戳
+    
+    nameGroup:
+      sql: dictGet('default.name_group_dict', 'groups', ip)
+      type: string
+      title: 名单分组
+    
+    sid:
+      sql: sid
+      type: string
+      title: 设备ID
+    
+    uid:
+      sql: uid
+      type: string
+      title: 用户标识
+    
+    ip:
+      sql: ip
+      type: string
+      title: IP
+    
+    ipGeoCity:
+      sql: ip_geo[3]
+      type: string
+      title: 城市
+    
+    ipGeoProvince:
+      sql: ip_geo[2]
+      type: string
+      title: 省份
+    
+    ipGeoCountry:
+      sql: ip_geo[1]
+      type: string
+      title: 国家
+
+    resultRisk:
+      sql: arrayFilter(x -> dictGetInt64('default.risk_dict','score',x)!=0,req_risk)
+      type: string
+      title: 命中规则
+    
+    resultType:
+      sql: if(result='protect', '保护', '放行')
+      type: string
+      title: 处理结果
+    
+    resultAction:
+      sql: result_action
+      type: string
+      title: 防护动作
+    
+    reason:
+      sql: reason
+      type: string
+      title: 原因
+    
+    channel:
+      sql: channel
+      type: string
+      title: 应用
+    
+    host:
+      sql: host
+      type: string
+      title: 域名
+    
+    method:
+      sql: method
+      type: string
+      title: 请求方式
+    
+    url:
+      sql: url
+      type: string
+      title: URL
+    
+    urlRoute:
+      sql: multiIf(url_route != '', url_route, countSubstrings(url, '/') < 2, url, arrayStringConcat(arrayMap(x -> if(countMatches(x, '[0-9a-fA-F-]') > 0.8 * length(x), '{parameter}', x), splitByChar('/', url)), '/'))
+      type: string
+      title: URL路由
+    
+    status:
+      sql: status
+      type: string
+      title: 响应状态
+    
+    uaName:
+      sql: multiIf(visitParamHas(dev_data, 'AndroidDeviceInfo'),JSONExtractString(dev_data,'AndroidDeviceInfo','OsInfo',3), visitParamHas(dev_data, 'IOSDeviceInfo'),JSONExtractString(dev_data,'IOSDeviceInfo','HwMachine'), visitParamHas(dev_data,'HarmonyDeviceInfo'), JSONExtractString(dev_data, 'HarmonyDeviceInfo', 'OsInfo', 1), ua_info[2])
+      type: string
+      title: 终端
+    
+    uaOs:
+      sql: ua_info[5]
+      type: string
+      title: 操作系统
+    
+    uaOsVersion:
+      sql: ua_info[6]
+      type: string
+      title: 系统版本
+
+    deviceFingerprint:
+      sql: ext_id[5]
+      type: string
+      title: 设备指纹
+    
+    nodeIp:
+      sql: data[1]
+      type: string
+      title: 节点IP
+    
+    nodeName:
+      sql: data[2]
+      type: string
+      title: 节点名字
+
+    reqAction:
+      sql: req_action
+      type: string
+      title: 动作
+
+    reqReason:
+      sql: req_reason
+      type: string
+      title: 原因
+    
+    protocol:
+      sql: multiIf(simpleJSONHas(req, 'authority'), 'HTTP2', position(method,'|')>0, substringIndex(method,'|',1), 'HTTP')
+      type: string
+      title: 协议
+
+    # 关联展开搜索
+    reqSensKey:
+      sql: req_sens_k
+      type: array
+      title: 敏感数据名称(请求)
+
+    respSensKey:
+      sql: res_sens_k
+      type: array
+      title: 敏感数据名称(响应)`
+
+    reqSensKeyNum:
+      sql: arrayReduce('sumMap', arrayMap(x -> map(x, 1), req_sens_k))
+      type: string
+      title: 统计隐私数量(请求)
+
+    resSensKeyNum:
+      sql: arrayReduce('sumMap', arrayMap(x -> map(x, 1), res_sens_k))
+      type: string
+      title: 统计隐私数量(响应)
+
+    reqContentLength:
+      sql: metric[3]
+      type: number
+      title: 请求大小
+
+    responseRisk:
+      sql: res_risk
+      type: string
+      title: 响应风险
+
+    responseAction:
+      sql: res_action
+      type: string
+      title: 响应防护动作
+
+    responseReason:
+      sql: res_reason
+      type: string
+      title: 响应原因
+
+    respContentLength:
+      sql: metric[4]
+      type: number
+      title: 响应大小
+
+    fileName:
+      sql: JSONExtractString(file, 'name')
+      type: string
+      title: 文件名称
+
+    fileType:
+      sql: JSONExtractString(file, 'type')
+      type: string
+      title: 文件类型
+
+    fileDirection:
+      sql: if(JSONExtractString(file, 'name') != '', '下载', if(JSONExtractString(file, 'content') != '', '上传', ''))
+      type: string
+      title: 动作
+
+    resultScore:
+      sql: multiIf(arrayExists(x -> dictGetInt64('default.risk_dict', 'score', x) = -100, req_risk), -100, notEmpty(req_risk), 100 - (100 * arrayProduct(arrayMap(x -> 1 - dictGetInt64('default.risk_dict', 'score', x) * 0.01, req_risk))), 0)
+      type: number
+      title: 结果得分
+
+    result:
+      sql: result
+      type: string
+      title: 结果
+
+    assetName:
+      sql: url_action[3]
+      type: string
+      title: 业务
+
+    ua:
+      sql: ua
+      type: string
+      title: User-Agent
+
+    customAppName:
+      sql: dictGetString('default.custom_app_dict', 'name', ext_id[7])
+      type: string
+      title: 应用名字
+
+    topoNetwork:
+      sql: if(notEmpty(url_action[5]), url_action[5], multiIf(ip_geo[5]='外发', '下载', ip_geo[1] IN ['内网','局域网'], '内网', '公网'))
+      type: string
+      title: 网络类型
+
+    dstNode:
+      sql: if(position(upstream, ']')!=0, regexpExtract(upstream, '\\[(.*)\\]', 1), splitByChar(':',upstream)[1])
+      type: string
+      title: 目标节点地址
+
+    sensScore:
+      sql: if(notEmpty(res_sens_k),100-100*arrayProduct(arrayMap(x -> 1-0.01*dictGetInt64('default.privacy_dict','score',x),arrayDistinct(res_sens_k))),0)
+      type: number
+      title: 敏感得分
+
+  segments:
+    org:
+      sql: org = '1'
+    black:
+      sql: 1=1 # Placeholder
+
+  measures:
+    count:
+      sql: count()
+      type: number
+      title: 访问量
+
+    minCountArray:
+      sql: arrayStringConcat(arrayMap(x -> toString(x), sumMap([toUnixTimestamp(toStartOfMinute(ts))], [1]).2), ',')
+      type: string
+      title: 分钟访问量

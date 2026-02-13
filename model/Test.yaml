@@ -1,0 +1,16 @@
+cube:
+  name: Test
+  sql_table: system.numbers
+  sql: SELECT * FROM system.numbers
+  
+  dimensions:
+    number:
+      sql: number
+      type: number
+      title: 数字
+  
+  measures:
+    count:
+      sql: count()
+      type: number
+      title: 计数
