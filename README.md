@@ -10,6 +10,7 @@ Cube.js的Go语言最小替换实现，专注于ClickHouse性能和简洁性。
 - ✅ 简洁SQL拼接，无复杂抽象
 - ✅ 单二进制部署，无外部依赖
 - ✅ 基本查询功能：dimensions, measures, filters, order, limit/offset
+- ✅ 可作为Go库直接嵌入调用，无需独立HTTP服务
 
 ## 架构设计
 
@@ -42,7 +43,56 @@ cd go-cube
 go build -o go-cube .
 ```
 
-### 2. 配置
+### 2. 作为库嵌入使用（v2推荐方式）
+
+go-cube 可以作为Go库直接嵌入到您的应用中，无需启动独立的HTTP服务（端口4000）：
+
+```go
+import (
+    "context"
+    "github.com/Servicewall/go-cube/api"
+    "github.com/Servicewall/go-cube/config"
+)
+
+// 初始化（只需调用一次）
+err := api.Init(&api.Config{
+    ClickHouse: config.ClickHouseConfig{
+        Hosts:    []string{"localhost:9000"},
+        Database: "default",
+        Username: "default",
+        Password: "",
+    },
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// 执行 cubejs-graph 查询（与 /load?query=... HTTP 接口参数格式相同）
+resp, err := api.Load(context.Background(), &api.QueryRequest{
+    Dimensions: []string{"AccessView.ts", "AccessView.ip", "AccessView.host"},
+    Filters: []api.Filter{
+        {Member: "AccessView.ip", Operator: "equals", Values: []interface{}{"1.2.3.4"}},
+    },
+    TimeDimensions: []api.TimeDimension{
+        {Dimension: "AccessView.ts", DateRange: api.DateRange{V: "from 15 minutes ago to now"}},
+    },
+    Order: api.OrderMap{"AccessView.ts": "desc"},
+    Limit: 50,
+})
+if err != nil {
+    log.Fatal(err)
+}
+// resp.Results[0].Data 包含查询结果
+```
+
+如果同时需要保留 HTTP 接口，可以挂载内置处理器：
+
+```go
+mux := http.NewServeMux()
+mux.Handle("/cube/", http.StripPrefix("/cube", api.RegisterHandler()))
+```
+
+### 3. 配置
 
 创建 `config.yaml`:
 

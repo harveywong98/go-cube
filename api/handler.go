@@ -24,7 +24,6 @@ type Config struct {
 
 var handler *Handler
 var modelLoader *model.Loader
-var chClient *sql.Client
 
 func Init(cfg *Config) error {
 	chClient, err := sql.NewClient(&cfg.ClickHouse)
