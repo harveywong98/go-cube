@@ -277,7 +277,7 @@ cube:
       title: 弱项Key过滤器
 
     customData:
-      sql: "data[indexOf(key, '{key}')]"
+      sql: data[indexOf(key, '{key}')]
       type: string
       title: 自定义数据
 
