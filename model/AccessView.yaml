@@ -276,9 +276,14 @@ cube:
       type: array
       title: 弱项Key过滤器
 
+    customData:
+      sql: "data[indexOf(key, '{key}')]"
+      type: string
+      title: 自定义数据
+
   segments:
     org:
-      sql: org = '1'
+      sql: org = ''
     black:
       sql: 1=1 # Placeholder
 

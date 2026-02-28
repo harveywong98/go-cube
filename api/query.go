@@ -65,10 +65,12 @@ type QueryResult struct {
 
 type RowData = map[string]interface{}
 
-// splitMemberName 将 "CubeName.fieldName" 拆分为 (cubeName, fieldName)
-func splitMemberName(s string) (string, string) {
-	cube, field, _ := strings.Cut(s, ".")
-	return cube, field
+// splitMemberName 将 "CubeName.fieldName" 或 "CubeName.fieldName.subKey" 拆分为
+// (cubeName, fieldName, subKey)，subKey 为空表示无三级 key。
+func splitMemberName(s string) (string, string, string) {
+	cube, rest, _ := strings.Cut(s, ".")
+	field, subKey, _ := strings.Cut(rest, ".")
+	return cube, field, subKey
 }
 
 func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, error) {
@@ -80,8 +82,8 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 	first := true
 	writeFields := func(names []string) {
 		for _, name := range names {
-			_, fieldName := splitMemberName(name)
-			if field, ok := cube.GetField(fieldName); ok {
+			_, fieldName, subKey := splitMemberName(name)
+			if field, ok := cube.GetField(fieldName, subKey); ok {
 				if !first {
 					sql.WriteString(", ")
 				}
@@ -105,7 +107,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 
 	// segments
 	for _, seg := range req.Segments {
-		_, segName := splitMemberName(seg)
+		_, segName, _ := splitMemberName(seg)
 		if s, ok := cube.Segments[segName]; ok && s.SQL != "" {
 			where = append(where, s.SQL)
 		}
@@ -113,8 +115,8 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 
 	// filters
 	for _, filter := range req.Filters {
-		_, fieldName := splitMemberName(filter.Member)
-		field, ok := cube.GetField(fieldName)
+		_, fieldName, subKey := splitMemberName(filter.Member)
+		field, ok := cube.GetField(fieldName, subKey)
 		if !ok || field.SQL == "" {
 			continue
 		}
@@ -159,8 +161,8 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 
 	// timeDimensions
 	for _, td := range req.TimeDimensions {
-		_, fieldName := splitMemberName(td.Dimension)
-		field, ok := cube.GetField(fieldName)
+		_, fieldName, subKey := splitMemberName(td.Dimension)
+		field, ok := cube.GetField(fieldName, subKey)
 		if !ok || td.DateRange.V == nil {
 			continue
 		}
@@ -193,8 +195,8 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			if i > 0 {
 				sql.WriteString(", ")
 			}
-			_, fieldName := splitMemberName(dim)
-			if field, ok := cube.GetField(fieldName); ok {
+			_, fieldName, subKey := splitMemberName(dim)
+			if field, ok := cube.GetField(fieldName, subKey); ok {
 				sql.WriteString(field.SQL)
 			} else {
 				sql.WriteString(dim)
@@ -210,8 +212,8 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			if i > 0 {
 				sql.WriteString(", ")
 			}
-			_, fieldName := splitMemberName(member)
-			if f, ok := cube.GetField(fieldName); ok {
+			_, fieldName, subKey := splitMemberName(member)
+			if f, ok := cube.GetField(fieldName, subKey); ok {
 				sql.WriteString(f.SQL)
 			} else {
 				sql.WriteString(member)
