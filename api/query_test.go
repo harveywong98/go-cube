@@ -410,18 +410,21 @@ func TestValidateQuery_NegativeLimit(t *testing.T) {
 
 func TestSplitMemberName(t *testing.T) {
 	cases := []struct {
-		in        string
-		wantCube  string
-		wantField string
+		in         string
+		wantCube   string
+		wantField  string
+		wantSubKey string
 	}{
-		{"AccessView.id", "AccessView", "id"},
-		{"AccessView.ts", "AccessView", "ts"},
-		{"id", "id", ""},
+		{"AccessView.id", "AccessView", "id", ""},
+		{"AccessView.ts", "AccessView", "ts", ""},
+		{"id", "id", "", ""},
+		{"AccessView.customData.UserToken", "AccessView", "customData", "UserToken"},
 	}
 	for _, c := range cases {
-		cube, field := splitMemberName(c.in)
-		if cube != c.wantCube || field != c.wantField {
-			t.Errorf("splitMemberName(%q) = (%q, %q), want (%q, %q)", c.in, cube, field, c.wantCube, c.wantField)
+		cube, field, subKey := splitMemberName(c.in)
+		if cube != c.wantCube || field != c.wantField || subKey != c.wantSubKey {
+			t.Errorf("splitMemberName(%q) = (%q, %q, %q), want (%q, %q, %q)",
+				c.in, cube, field, subKey, c.wantCube, c.wantField, c.wantSubKey)
 		}
 	}
 }
@@ -468,6 +471,100 @@ func TestConvertToClickHouseTimeExpr(t *testing.T) {
 		if got := convertToClickHouseTimeExpr(c.in); got != c.want {
 			t.Errorf("convertToClickHouseTimeExpr(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestBuildQuery_CustomDataSubKey(t *testing.T) {
+	cube := testCube()
+	cube.Dimensions["customData"] = model.Dimension{
+		SQL:  "data[indexOf(key, '{key}')]",
+		Type: "string",
+	}
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.customData.UserToken"},
+	}
+
+	sql, params, err := BuildQuery(req, cube)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(sql, `data[indexOf(key, 'UserToken')]`) {
+		t.Errorf("expected subKey substitution in SQL, got: %s", sql)
+	}
+	if !contains(sql, `"AccessView.customData.UserToken"`) {
+		t.Errorf("expected full alias in SQL, got: %s", sql)
+	}
+	if len(params) != 0 {
+		t.Errorf("expected no params, got %v", params)
+	}
+}
+
+func TestBuildQuery_CustomDataSubKeyFilter(t *testing.T) {
+	cube := testCube()
+	cube.Dimensions["customData"] = model.Dimension{
+		SQL:  "data[indexOf(key, '{key}')]",
+		Type: "string",
+	}
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.id"},
+		Filters: []Filter{
+			{Member: "AccessView.customData.UserToken", Operator: "equals", Values: []interface{}{"abc"}},
+		},
+	}
+
+	sql, params, err := BuildQuery(req, cube)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(sql, `data[indexOf(key, 'UserToken')] IN (?)`) {
+		t.Errorf("expected filter with subKey substitution, got: %s", sql)
+	}
+	if len(params) != 1 || params[0] != "abc" {
+		t.Errorf("unexpected params: %v", params)
+	}
+}
+
+func TestBuildQuery_CustomDataSubKeyOrderBy(t *testing.T) {
+	cube := testCube()
+	cube.Dimensions["customData"] = model.Dimension{
+		SQL:  "data[indexOf(key, '{key}')]",
+		Type: "string",
+	}
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.customData.UserToken"},
+		Order:      OrderMap{"AccessView.customData.UserToken": "desc"},
+	}
+
+	sql, _, err := BuildQuery(req, cube)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(sql, `data[indexOf(key, 'UserToken')] DESC`) {
+		t.Errorf("expected subKey substitution in ORDER BY, got: %s", sql)
+	}
+}
+
+func TestBuildQuery_CustomDataSubKeyGroupBy(t *testing.T) {
+	cube := testCube()
+	cube.Dimensions["customData"] = model.Dimension{
+		SQL:  "data[indexOf(key, '{key}')]",
+		Type: "string",
+	}
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.customData.UserToken"},
+		Measures:   []string{"AccessView.count"},
+	}
+
+	sql, _, err := BuildQuery(req, cube)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// GROUP BY 应出现两次（SELECT 和 GROUP BY 各一次）
+	if !contains(sql, "GROUP BY") {
+		t.Errorf("expected GROUP BY clause, got: %s", sql)
+	}
+	if !contains(sql, `data[indexOf(key, 'UserToken')]`) {
+		t.Errorf("expected subKey substitution in GROUP BY, got: %s", sql)
 	}
 }
 

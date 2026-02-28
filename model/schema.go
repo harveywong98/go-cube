@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type Cube struct {
 	Name       string               `yaml:"name"`
 	SQL        string               `yaml:"sql"`
@@ -26,12 +28,16 @@ type Segment struct {
 	SQL string `yaml:"sql"`
 }
 
-
-func (c *Cube) GetField(name string) (Field, bool) {
+// GetField 查找维度或度量字段，subKey 非空时将 SQL 模板中的 {key} 替换为 subKey。
+func (c *Cube) GetField(name string, subKey string) (Field, bool) {
 	if dim, ok := c.Dimensions[name]; ok {
+		sql := dim.SQL
+		if subKey != "" {
+			sql = strings.ReplaceAll(sql, "{key}", subKey)
+		}
 		return Field{
 			Name: name,
-			SQL:  dim.SQL,
+			SQL:  sql,
 			Type: dim.Type,
 		}, true
 	}
