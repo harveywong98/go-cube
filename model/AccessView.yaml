@@ -338,7 +338,7 @@ cube:
     xff:
       sql: xff
       type: string
-      title: XFF
+      title: X-Forwarded-For
 
     customParamMap:
       sql: mapFromArrays(key,data,4)
