@@ -142,3 +142,18 @@ cube:
       sql: "any('[' || substring( if(has(dictGet('default.risk_dict', 'group', risk),'响应涉敏'), '{ \"AccessView.respSensValNum\": \"desc\" },' ,'') || if(has(dictGet('default.risk_dict', 'group', risk),'请求涉敏'), '{\"AccessView.reqSensValNum\": \"desc\"},','') as ro,1,length(ro)-1 ) || ']' )"
       type: string
       title: 扩展排序
+
+    countNum:
+      sql: sum(count)
+      type: number
+      title: 触发次数
+
+    riskFullDesc:
+      sql: argMax(dictGet('default.risk_dict', 'desc', risk), ts)
+      type: string
+      title: 完整的风险描述
+
+    resSensKv:
+      sql: uniqHLL12MapMerge(res_sens_kv)
+      type: string
+      title: 隐私项及值
