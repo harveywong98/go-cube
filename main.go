@@ -36,7 +36,18 @@ func main() {
 	}
 
 	// 初始化模型加载器
-	modelLoader := model.NewLoader(os.DirFS(cfg.Models.Path))
+	modelArgs := map[string]string{
+		"ACCESS_RAW_VIEW_CUTOFF": cfg.Models.AccessRawViewCutoff,
+	}
+	if modelArgs["ACCESS_RAW_VIEW_CUTOFF"] == "" {
+		// 默认值为 "1970-01-01 00:00:00"
+		// 此时 ts >= '1970...' 永远为真 (全查新表)
+		// ts < '1970...' 永远为假 (不查旧表)
+		// 相当于完全切流到新表，不兼容旧数据，符合新安装场景
+		modelArgs["ACCESS_RAW_VIEW_CUTOFF"] = "1970-01-01 00:00:00"
+	}
+
+	modelLoader := model.NewLoader(os.DirFS(cfg.Models.Path), modelArgs)
 	if _, err := modelLoader.LoadAll(); err != nil {
 		log.Printf("Warning: load models: %v", err)
 	}

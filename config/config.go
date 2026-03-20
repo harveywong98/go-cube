@@ -29,8 +29,9 @@ type ClickHouseConfig struct {
 }
 
 type ModelsConfig struct {
-	Path  string `yaml:"path"`
-	Watch bool   `yaml:"watch"`
+	Path                string `yaml:"path"`
+	Watch               bool   `yaml:"watch"`
+	AccessRawViewCutoff string `yaml:"access_raw_view_cutoff"`
 }
 
 func Load(path string) (*Config, error) {

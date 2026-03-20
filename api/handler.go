@@ -31,7 +31,11 @@ func New(cfg *config.ClickHouseConfig) (*Handler, error) {
 	if queryTimeout == 0 {
 		queryTimeout = 30 * time.Second
 	}
-	h := NewHandler(model.NewLoader(model.InternalFS), chClient)
+	// 默认 1970-01-01 表示不兼容旧数据 (新安装)
+	defaultArgs := map[string]string{
+		"ACCESS_RAW_VIEW_CUTOFF": "1970-01-01 00:00:00",
+	}
+	h := NewHandler(model.NewLoader(model.InternalFS, defaultArgs), chClient)
 	h.queryTimeout = queryTimeout
 	return h, nil
 }

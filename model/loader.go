@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -19,12 +20,14 @@ type Loader struct {
 	fsys  fs.FS
 	cache map[string]*Cube
 	mu    sync.RWMutex
+	args  map[string]string
 }
 
-func NewLoader(fsys fs.FS) *Loader {
+func NewLoader(fsys fs.FS, args map[string]string) *Loader {
 	return &Loader{
 		fsys:  fsys,
 		cache: make(map[string]*Cube),
+		args:  args,
 	}
 }
 
@@ -42,11 +45,16 @@ func (l *Loader) Load(name string) (*Cube, error) {
 		return nil, fmt.Errorf("read model file %s: %w", fileName, err)
 	}
 
+	content := string(data)
+	for k, v := range l.args {
+		content = strings.ReplaceAll(content, "{{"+k+"}}", v)
+	}
+
 	// YAML文件有顶层"cube:"键
 	var wrapper struct {
 		Cube Cube `yaml:"cube"`
 	}
-	if err := yaml.Unmarshal(data, &wrapper); err != nil {
+	if err := yaml.Unmarshal([]byte(content), &wrapper); err != nil {
 		return nil, fmt.Errorf("parse model file %s: %w", fileName, err)
 	}
 

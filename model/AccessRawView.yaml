@@ -1,0 +1,35 @@
+cube:
+  name: AccessRawView
+  description: "原始请求/响应报文详情 (按需查询)"
+  sql_table: |
+    (
+      SELECT id, ts, req, res 
+      FROM default.access
+      WHERE ts >= '{{ACCESS_RAW_VIEW_CUTOFF}}'
+      UNION ALL
+      SELECT id, ts, req, res 
+      FROM default.access_raw_local
+      WHERE ts < '{{ACCESS_RAW_VIEW_CUTOFF}}'
+    ) AS access_raw_wrapper
+
+  dimensions:
+    id:
+      sql: id
+      type: string
+      primary_key: true
+      title: 请求ID
+
+    ts:
+      sql: ts
+      type: time
+      title: 时间
+
+    request:
+      sql: if(req != '', jsonMergePatch(req, toJSONString(map('Body', if(substr(JSONExtractString(req,'Method'),-3) IN ['C2S','S2C','TCP','WS'], tryBase64Decode(JSONExtractString(req,'Body')), subStr(JSONExtractString(req,'Body'),1,100000))))), req)
+      type: string
+      title: 请求报文
+
+    response:
+      sql: if(res != '', jsonMergePatch(res, toJSONString(map('Body', subStr(JSONExtractString(res, 'Body'), 1, 100000)))), res)
+      type: string
+      title: 响应报文
