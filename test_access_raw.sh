@@ -30,14 +30,10 @@ trap 'cp /tmp/AccessRawView_prod.yaml model/AccessRawView.yaml' EXIT
 
 go build -o go-cube . || { echo "Build failed"; exit 1; }
 
-echo "Killing any leftover go-cube processes..."
-pkill -f go-cube 2>/dev/null
-sleep 1
-
 echo "Starting server..."
 ./go-cube &
 SERVER_PID=$!
-sleep 2
+sleep 1
 
 echo ""
 echo "=== 1. ungrouped request+response (limit 1) ==="
