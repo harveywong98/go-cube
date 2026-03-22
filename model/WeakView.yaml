@@ -1,0 +1,178 @@
+cube:
+  name: WeakView
+  sql: |
+    SELECT org, host, channel, url, method, weak_name, url_action, weak_data,
+           countm AS count, last_time_max AS last_time, first_time, res_sens_count,
+           tag, manage_id, add_time
+    FROM (
+      SELECT org, host, channel, url, method, weak_name,
+             argMax(url_action, last_time)      AS url_action,
+             argMax(weak_data, last_time)       AS weak_data,
+             argMax(count, last_time)           AS countm,
+             max(last_time)                     AS last_time_max,
+             min(first_time)                    AS first_time,
+             argMax(res_sens_count, last_time)  AS res_sens_count
+      FROM weak
+      GROUP BY org, host, channel, url, method, weak_name
+    ) AS w
+    LEFT JOIN (
+      SELECT host, method, url, defect_id AS weak_name, tag,
+             id AS manage_id, add_time,
+             coalesce(org_id, '') AS org
+      FROM postgres.api_weak_mgts
+      WHERE tag != ''
+    ) AS tb2 USING (org, host, method, url, weak_name)
+
+  segments:
+    org:
+      sql: org = ''
+    black:
+      sql: 1=1
+
+  dimensions:
+    topoNetwork:
+      sql: url_action[5]
+      type: string
+      title: 网络类型
+
+    respSensTagSet:
+      sql: arrayStringConcat(res_sens_count.1, ', ')
+      type: string
+      title: 响应涉敏标签
+
+    count:
+      sql: count
+      type: number
+      title: 触发次数
+
+    owaspTop10:
+      sql: dictGetString('weak_dict', 'owasp_top10', weak_name)
+      type: string
+      title: OWASP Top10 分类
+
+    defectId:
+      sql: weak_name
+      primary_key: true
+      type: string
+      title: 弱点名称
+
+    tag:
+      sql: "if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))"
+      type: string
+      title: 弱点标签
+
+    manageId:
+      sql: manage_id
+      type: number
+      title: 管理ID
+
+    addTime:
+      sql: fromUnixTimestamp(add_time)
+      type: time
+      title: 添加时间
+
+    first:
+      sql: first_time
+      type: time
+      title: 首次触发时间
+
+    last:
+      sql: last_time
+      type: time
+      title: 最近触发时间
+
+    urlRoute:
+      sql: url
+      type: string
+      title: API
+
+    host:
+      sql: host
+      type: string
+      title: 域名
+
+    method:
+      sql: method
+      type: string
+      title: 请求方式
+
+    channel:
+      sql: channel
+      type: string
+      title: 应用
+
+    assetName:
+      sql: "multiIf(url_action[3]!='', url_action[3], url_action[2]='auto', url_action[1], '')"
+      type: string
+      title: 业务
+
+    weakLevel:
+      sql: "multiIf(dictGetInt64('weak_dict','score',weak_name)=80, '高危害', dictGetInt64('weak_dict','score',weak_name)=50, '中危害', '低危害')"
+      type: string
+      title: 弱点等级
+
+    weakScore:
+      sql: dictGetInt64('weak_dict', 'score', weak_name)
+      type: number
+      title: 弱点分数
+
+    appName:
+      sql: "multiIf(notEmpty(dictGet('host_dict', 'info', assumeNotNull(host))), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet('host_dict', 'info', assumeNotNull(host)))[2], notEmpty(dictGet('host_dict', 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*')), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet('host_dict', 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*'))[2], host)"
+      type: string
+      title: 应用名称
+
+    firstCategory:
+      sql: "if(dictGetString('weak_dict', 'category', weak_name)!='', dictGetString('weak_dict', 'category', weak_name), '未分类')"
+      type: string
+      title: 弱点类别
+
+    netDomain:
+      sql: url_action[7]
+      type: string
+      title: 网络域
+
+  measures:
+    riskCount:
+      sql: count()
+      type: number
+      title: 弱点数
+
+    uniqWeakApi:
+      sql: uniqHLL12(host, url, method)
+      type: number
+      title: 弱点API数
+
+    sum:
+      sql: sum(count)
+      type: number
+      title: 弱点总次数
+
+    levelCount:
+      sql: "sumMapIf(([multiIf(dictGetInt64('weak_dict','score',weak_name)=80, '高危害', dictGetInt64('weak_dict','score',weak_name)=50, '中危害', '低危害')],[1]), if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))<>'ignore')"
+      type: number
+      title: 分级统计
+
+    manageCount:
+      sql: "sumMapIf([if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))],[1], dictGetInt64('weak_dict','score',weak_name)>20)"
+      type: number
+      title: 管理统计
+
+    firstCategoryCount:
+      sql: "sumMapIf(([if(dictGetString('weak_dict', 'category', weak_name)!='', dictGetString('weak_dict', 'category', weak_name), '未分类')],[1]), if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))<>'ignore')"
+      type: number
+      title: 一级分类统计
+
+    secondCategoryCount:
+      sql: "sumMapIf(([weak_name],[1]), if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))<>'ignore')"
+      type: number
+      title: 二级分类统计
+
+    categoryCount:
+      sql: "sumMapIf(([if(dictGetString('weak_dict', 'category', weak_name)!='', dictGetString('weak_dict', 'category', weak_name), '未分类')||':::'||weak_name],[1]), if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))<>'ignore')"
+      type: number
+      title: 分类统计
+
+    owaspCategoryCount:
+      sql: "sumMapIf(([dictGetString('weak_dict', 'owasp_top10', weak_name)],[1]), if(coalesce(tag,'')='', if(first_time>=today(), 'first', 'repeated'), if(tag='fix' AND last_time > toUnixTimestamp(add_time), 'reproduced', coalesce(tag,'')))<>'ignore' AND dictGetString('weak_dict', 'owasp_top10', weak_name) != '')"
+      type: number
+      title: OWASP Top 10 分类统计
