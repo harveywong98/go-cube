@@ -120,18 +120,36 @@ var granularityFunc = map[string]string{
 	"year":    "toStartOfYear",
 }
 
+// buildTimeDimensionClause 根据 dateRange 生成时间过滤片段，与外层 timeDimensions WHERE 逻辑完全一致。
+func buildTimeDimensionClause(colSQL string, dr DateRange) (string, []interface{}) {
+	switch v := dr.V.(type) {
+	case []string:
+		if len(v) == 2 {
+			return fmt.Sprintf("%s >= ? AND %s <= ?", colSQL, colSQL), []interface{}{v[0], v[1]}
+		}
+	case string:
+		if v != "" {
+			if start, end, ok := parseRelativeTimeRange(v); ok {
+				return fmt.Sprintf("%s >= %s AND %s <= %s", colSQL, start, colSQL, end), nil
+			}
+			return fmt.Sprintf("toDate(%s) = %s", colSQL, convertToClickHouseTimeExpr(v)), nil
+		}
+	}
+	return "", nil
+}
+
 func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, error) {
 	var sql strings.Builder
 	var params []interface{}
 	var whereParams []interface{}
 	var havingParams []interface{}
 
-	// 收集有 granularity 的时间维度：alias -> truncated SQL expr
+	// 收集有 granularity 的时间维度：dimension -> (alias, expr)
 	type granularityCol struct {
 		alias string
 		expr  string
 	}
-	var granCols []granularityCol
+	granByDim := map[string]granularityCol{}
 	for _, td := range req.TimeDimensions {
 		if td.Granularity == "" {
 			continue
@@ -145,9 +163,10 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		if !ok {
 			continue
 		}
-		alias := td.Dimension + "." + td.Granularity
-		expr := fmt.Sprintf("%s(%s)", fn, field.SQL)
-		granCols = append(granCols, granularityCol{alias: alias, expr: expr})
+		granByDim[td.Dimension] = granularityCol{
+			alias: td.Dimension + "." + td.Granularity,
+			expr:  fmt.Sprintf("%s(%s)", fn, field.SQL),
+		}
 	}
 
 	// SELECT
@@ -168,7 +187,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 	writeFields(req.Dimensions)
 	writeFields(req.Measures)
 	// granularity 截断列追加在 SELECT 末尾
-	for _, gc := range granCols {
+	for _, gc := range granByDim {
 		if !first {
 			sql.WriteString(", ")
 		}
@@ -179,9 +198,9 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		sql.WriteString("1")
 	}
 
-	// FROM
+	// FROM（延迟写入，等 timeDimensions 循环替换占位符后再拼）
+	fromSQL := cube.GetSQLTable()
 	sql.WriteString(" FROM ")
-	sql.WriteString(cube.GetSQLTable())
 
 	// WHERE / HAVING
 	var where []string
@@ -259,22 +278,22 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		if !ok || td.DateRange.V == nil {
 			continue
 		}
-		switch v := td.DateRange.V.(type) {
-		case []string:
-			if len(v) == 2 {
-				where = append(where, fmt.Sprintf("%s >= ? AND %s <= ?", field.SQL, field.SQL))
-				whereParams = append(whereParams, v[0], v[1])
-			}
-		case string:
-			if v != "" {
-				if start, end, ok := parseRelativeTimeRange(v); ok {
-					where = append(where, fmt.Sprintf("%s >= %s AND %s <= %s", field.SQL, start, field.SQL, end))
-				} else {
-					where = append(where, fmt.Sprintf("toDate(%s) = %s", field.SQL, convertToClickHouseTimeExpr(v)))
-				}
+		if clause, p := buildTimeDimensionClause(field.SQL, td.DateRange); clause != "" {
+			where = append(where, clause)
+			whereParams = append(whereParams, p...)
+			// 同步替换子查询中的占位符（使用原始列名而非 dimension SQL 表达式）
+			placeholder := "{filter." + fieldName + "}"
+			if strings.Contains(fromSQL, placeholder) {
+				subClause, _ := buildTimeDimensionClause(fieldName, td.DateRange)
+				fromSQL = strings.ReplaceAll(fromSQL, placeholder, subClause)
 			}
 		}
 	}
+	if i := strings.Index(fromSQL, "{filter."); i >= 0 {
+		j := strings.Index(fromSQL[i:], "}")
+		return "", nil, fmt.Errorf("unresolved SQL placeholder %s: no matching timeDimension with dateRange", fromSQL[i:i+j+1])
+	}
+	sql.WriteString(fromSQL)
 
 	if len(where) > 0 {
 		sql.WriteString(" WHERE ")
@@ -282,7 +301,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 	}
 
 	// GROUP BY
-	if len(req.Measures) > 0 && (len(req.Dimensions) > 0 || len(granCols) > 0) {
+	if len(req.Measures) > 0 && (len(req.Dimensions) > 0 || len(granByDim) > 0) {
 		sql.WriteString(" GROUP BY ")
 		groupFirst := true
 		for _, dim := range req.Dimensions {
@@ -297,7 +316,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			}
 			groupFirst = false
 		}
-		for _, gc := range granCols {
+		for _, gc := range granByDim {
 			if !groupFirst {
 				sql.WriteString(", ")
 			}
@@ -318,38 +337,23 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 	// ORDER BY
 	if len(req.Order) > 0 {
 		sql.WriteString(" ORDER BY ")
-		i := 0
-		for _, item := range req.Order {
-			member, direction := item.Member, item.Direction
+		for i, item := range req.Order {
 			if i > 0 {
 				sql.WriteString(", ")
 			}
-			// If this member is a time dimension with granularity, use the truncated expr
-			granExpr := ""
-			for _, td := range req.TimeDimensions {
-				if td.Dimension == member && td.Granularity != "" {
-					if fn, ok := granularityFunc[td.Granularity]; ok {
-						_, fieldName, subKey := splitMemberName(td.Dimension)
-						if f, ok := cube.GetField(fieldName, subKey); ok {
-							granExpr = fmt.Sprintf("%s(%s)", fn, f.SQL)
-						}
-					}
-				}
-			}
-			if granExpr != "" {
-				sql.WriteString(granExpr)
+			if gc, ok := granByDim[item.Member]; ok {
+				sql.WriteString(gc.expr)
 			} else {
-				_, fieldName, subKey := splitMemberName(member)
+				_, fieldName, subKey := splitMemberName(item.Member)
 				if f, ok := cube.GetField(fieldName, subKey); ok {
 					sql.WriteString(f.SQL)
 				} else {
-					sql.WriteString(member)
+					sql.WriteString(item.Member)
 				}
 			}
-			if direction == "desc" {
+			if item.Direction == "desc" {
 				sql.WriteString(" DESC")
 			}
-			i++
 		}
 	}
 
