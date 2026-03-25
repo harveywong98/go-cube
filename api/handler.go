@@ -109,6 +109,7 @@ func (h *Handler) HandleLoad(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	req.Mask = r.Header.Get("X-Auth-Mask") == "true"
 
 	resp, err := h.Query(ctx, req)
 	if err != nil {

@@ -19,6 +19,7 @@ type QueryRequest struct {
 	Offset         int             `json:"offset"`
 	Segments       []string        `json:"segments"`
 	Timezone       string          `json:"timezone"`
+	Mask           bool            `json:"-"`
 }
 
 // DateRange 支持字符串或字符串数组格式
@@ -139,6 +140,8 @@ func buildTimeDimensionClause(colSQL string, dr DateRange) (string, []interface{
 }
 
 func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, error) {
+	mask := req.Mask
+
 	var sql strings.Builder
 	var params []interface{}
 	var whereParams []interface{}
@@ -179,7 +182,11 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 				if !first {
 					sql.WriteString(", ")
 				}
-				fmt.Fprintf(&sql, "%s AS \"%s\"", field.SQL, name)
+				effectiveSQL := field.SQL
+				if mask && field.SQLMask != "" {
+					effectiveSQL = field.SQLMask
+				}
+				fmt.Fprintf(&sql, "%s AS \"%s\"", effectiveSQL, name)
 				first = false
 			}
 		}
