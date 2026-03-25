@@ -13,15 +13,17 @@ type Cube struct {
 
 type Dimension struct {
 	SQL        string `yaml:"sql"`
+	SQLMask    string `yaml:"sql_mask,omitempty"`
 	Type       string `yaml:"type"`
 	Title      string `yaml:"title,omitempty"`
 	PrimaryKey bool   `yaml:"primary_key,omitempty"`
 }
 
 type Measure struct {
-	SQL   string `yaml:"sql"`
-	Type  string `yaml:"type"`
-	Title string `yaml:"title,omitempty"`
+	SQL     string `yaml:"sql"`
+	SQLMask string `yaml:"sql_mask,omitempty"`
+	Type    string `yaml:"type"`
+	Title   string `yaml:"title,omitempty"`
 }
 
 type Segment struct {
@@ -32,21 +34,27 @@ type Segment struct {
 func (c *Cube) GetField(name string, subKey string) (Field, bool) {
 	if dim, ok := c.Dimensions[name]; ok {
 		sql := dim.SQL
+		sqlMask := dim.SQLMask
 		if subKey != "" {
 			sql = strings.ReplaceAll(sql, "{key}", subKey)
+			if sqlMask != "" {
+				sqlMask = strings.ReplaceAll(sqlMask, "{key}", subKey)
+			}
 		}
 		return Field{
-			Name: name,
-			SQL:  sql,
-			Type: dim.Type,
+			Name:    name,
+			SQL:     sql,
+			SQLMask: sqlMask,
+			Type:    dim.Type,
 		}, true
 	}
 
 	if measure, ok := c.Measures[name]; ok {
 		return Field{
-			Name: name,
-			SQL:  measure.SQL,
-			Type: measure.Type,
+			Name:    name,
+			SQL:     measure.SQL,
+			SQLMask: measure.SQLMask,
+			Type:    measure.Type,
 		}, true
 	}
 
@@ -65,7 +73,8 @@ func (c *Cube) GetSQLTable() string {
 }
 
 type Field struct {
-	Name string
-	SQL  string
-	Type string
+	Name    string
+	SQL     string
+	SQLMask string
+	Type    string
 }
