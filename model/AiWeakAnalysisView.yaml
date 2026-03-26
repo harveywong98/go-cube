@@ -1,0 +1,24 @@
+cube:
+  name: AiWeakAnalysisView
+  sql_table: ai_analysis
+
+  segments:
+    org:
+      sql: "org = ''"
+
+  measures:
+    lastWeakAnalysis:
+      sql: anyLast(analysis)
+      type: string
+      title: 最新弱点分析
+
+  dimensions:
+    target:
+      sql: target
+      type: string
+      title: 目标
+
+    analysis:
+      sql: analysis
+      type: string
+      title: AI分析
