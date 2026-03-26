@@ -156,7 +156,7 @@ cube:
 
     reqSensKV:
       sql: if(empty(req_sens_k), '', toJSONString(mapFromArrays(arrayDistinct(req_sens_k), arrayMap(k -> arrayStringConcat(arrayMap(kv -> kv.2, arrayFilter(kv -> kv.1 = k, arrayZip(req_sens_k, req_sens_v))), ','), arrayDistinct(req_sens_k)))))
-      sql_mask: "if(empty(req_sens_k), '', toJSONString(mapFromArrays(arrayDistinct(req_sens_k), arrayMap(k -> arrayStringConcat(arrayMap(kv -> concat(substr(kv.2,1,1),'***',substr(kv.2,length(kv.2),1)), arrayFilter(kv -> kv.1 = k, arrayZip(req_sens_k, req_sens_v))), ','), arrayDistinct(req_sens_k)))))"
+      sql_mask: "if(empty(req_sens_k), '', toJSONString(mapFromArrays(arrayDistinct(req_sens_k), arrayMap(k -> arrayStringConcat(arrayMap(kv -> concat(substringUTF8(kv.2,1,1),'***',substringUTF8(kv.2,lengthUTF8(kv.2),1)), arrayFilter(kv -> kv.1 = k, arrayZip(req_sens_k, req_sens_v))), ','), arrayDistinct(req_sens_k)))))"
       type: string
       title: 请求敏感数据
 
@@ -193,13 +193,13 @@ cube:
 
     reqSensVal:
       sql: req_sens_v
-      sql_mask: "arrayMap(v -> concat(substr(v,1,1),'***',substr(v,length(v),1)), req_sens_v)"
+      sql_mask: "arrayMap(v -> concat(substringUTF8(v,1,1),'***',substringUTF8(v,lengthUTF8(v),1)), req_sens_v)"
       type: array
       title: 敏感数据值(请求)
 
     respSensVal:
       sql: res_sens_v
-      sql_mask: "arrayMap(v -> concat(substr(v,1,1),'***',substr(v,length(v),1)), res_sens_v)"
+      sql_mask: "arrayMap(v -> concat(substringUTF8(v,1,1),'***',substringUTF8(v,lengthUTF8(v),1)), res_sens_v)"
       type: array
       title: 敏感数据值(响应)
 
@@ -240,13 +240,13 @@ cube:
 
     request:
       sql: if(notEmpty(req), jsonMergePatch(req, toJSONString(map('Body', if(substr(JSONExtractString(req,'Method'),-3) IN ['C2S','S2C','TCP','WS'], tryBase64Decode(JSONExtractString(req,'Body')), subStr(JSONExtractString(req,'Body'),1,100000))))), '')
-      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, concat(substr(v,1,1),'***',substr(v,length(v),1))), req_sens_v, if(notEmpty(req), jsonMergePatch(req, toJSONString(map('Body', if(substr(JSONExtractString(req,'Method'),-3) IN ['C2S','S2C','TCP','WS'], tryBase64Decode(JSONExtractString(req,'Body')), subStr(JSONExtractString(req,'Body'),1,100000))))), ''))"
+      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, '***'), req_sens_v, if(notEmpty(req), jsonMergePatch(req, toJSONString(map('Body', if(substr(JSONExtractString(req,'Method'),-3) IN ['C2S','S2C','TCP','WS'], tryBase64Decode(JSONExtractString(req,'Body')), subStr(JSONExtractString(req,'Body'),1,100000))))), ''))"
       type: string
       title: 请求报文
 
     response:
       sql: if(notEmpty(res), jsonMergePatch(res, toJSONString(map('Body', subStr(JSONExtractString(res, 'Body'), 1, 100000)))), '')
-      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, concat(substr(v,1,1),'***',substr(v,length(v),1))), res_sens_v, if(notEmpty(res), jsonMergePatch(res, toJSONString(map('Body', subStr(JSONExtractString(res, 'Body'), 1, 100000)))), ''))"
+      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, '***'), res_sens_v, if(notEmpty(res), jsonMergePatch(res, toJSONString(map('Body', subStr(JSONExtractString(res, 'Body'), 1, 100000)))), ''))"
       type: string
       title: 响应报文
 
@@ -292,7 +292,7 @@ cube:
 
     fileSensVal:
       sql: if(JSONExtractString(file, 'name') != '', res_sens_v, req_sens_v)
-      sql_mask: "arrayMap(v -> concat(substr(v,1,1),'***',substr(v,length(v),1)), if(JSONExtractString(file, 'name') != '', res_sens_v, req_sens_v))"
+      sql_mask: "arrayMap(v -> concat(substringUTF8(v,1,1),'***',substringUTF8(v,lengthUTF8(v),1)), if(JSONExtractString(file, 'name') != '', res_sens_v, req_sens_v))"
       type: array
       title: 文件敏感数据值
 
@@ -303,7 +303,7 @@ cube:
 
     fileSensValExt:
       sql: if(JSONExtractString(file, 'name') != '', arrayJoin(res_sens_v), arrayJoin(req_sens_v))
-      sql_mask: "concat(substr(arrayJoin(if(JSONExtractString(file,'name')!='',res_sens_v,req_sens_v)),1,1),'***',substr(arrayJoin(if(JSONExtractString(file,'name')!='',res_sens_v,req_sens_v)),length(arrayJoin(if(JSONExtractString(file,'name')!='',res_sens_v,req_sens_v))),1))"
+      sql_mask: "concat(substringUTF8(arrayJoin(if(JSONExtractString(file,'name')!='',res_sens_v,req_sens_v)),1,1),'***',substringUTF8(arrayJoin(if(JSONExtractString(file,'name')!='',res_sens_v,req_sens_v)),lengthUTF8(arrayJoin(if(JSONExtractString(file,'name')!='',res_sens_v,req_sens_v))),1))"
       type: string
       title: 文件敏感数据值展开
 
@@ -384,7 +384,7 @@ cube:
 
     resSensKV:
       sql: if(empty(res_sens_k), '', toJSONString(mapFromArrays(arrayDistinct(res_sens_k), arrayMap(k -> arrayStringConcat(arrayMap(kv -> kv.2, arrayFilter(kv -> kv.1 = k, arrayZip(res_sens_k, res_sens_v))), ','), arrayDistinct(res_sens_k)))))
-      sql_mask: "if(empty(res_sens_k), '', toJSONString(mapFromArrays(arrayDistinct(res_sens_k), arrayMap(k -> arrayStringConcat(arrayMap(kv -> concat(substr(kv.2,1,1),'***',substr(kv.2,length(kv.2),1)), arrayFilter(kv -> kv.1 = k, arrayZip(res_sens_k, res_sens_v))), ','), arrayDistinct(res_sens_k)))))"
+      sql_mask: "if(empty(res_sens_k), '', toJSONString(mapFromArrays(arrayDistinct(res_sens_k), arrayMap(k -> arrayStringConcat(arrayMap(kv -> concat(substringUTF8(kv.2,1,1),'***',substringUTF8(kv.2,lengthUTF8(kv.2),1)), arrayFilter(kv -> kv.1 = k, arrayZip(res_sens_k, res_sens_v))), ','), arrayDistinct(res_sens_k)))))"
       type: string
       title: 响应敏感数据
 
@@ -602,13 +602,13 @@ cube:
 
     reqBody:
       sql: req_body
-      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, concat(substr(v,1,1),'***',substr(v,length(v),1))), req_sens_v, req_body)"
+      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, '***'), req_sens_v, req_body)"
       type: string
       title: 请求Body
 
     respBody:
       sql: res_body
-      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, concat(substr(v,1,1),'***',substr(v,length(v),1))), res_sens_v, res_body)"
+      sql_mask: "arrayFold((acc, v) -> replaceAll(acc, v, '***'), res_sens_v, res_body)"
       type: string
       title: 响应Body
 
@@ -625,13 +625,13 @@ cube:
 
     reqSampleValue:
       sql: arraySlice(req_sens_v,1,1000)
-      sql_mask: "arrayMap(v -> concat(substr(v,1,1),'***',substr(v,length(v),1)), arraySlice(req_sens_v,1,1000))"
+      sql_mask: "arrayMap(v -> concat(substringUTF8(v,1,1),'***',substringUTF8(v,lengthUTF8(v),1)), arraySlice(req_sens_v,1,1000))"
       type: string
       title: 敏感数据采样(请求)
 
     respSampleValue:
       sql: arraySlice(res_sens_v,1,1000)
-      sql_mask: "arrayMap(v -> concat(substr(v,1,1),'***',substr(v,length(v),1)), arraySlice(res_sens_v,1,1000))"
+      sql_mask: "arrayMap(v -> concat(substringUTF8(v,1,1),'***',substringUTF8(v,lengthUTF8(v),1)), arraySlice(res_sens_v,1,1000))"
       type: string
       title: 敏感数据采样(响应)
 
