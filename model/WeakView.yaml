@@ -187,7 +187,3 @@ cube:
       type: number
       title: OWASP Top 10 分类统计
 
-    lastWeakAnalysis:
-      sql: argMax(weak_data['analysis'], last_time)
-      type: string
-      title: 最新弱点分析
