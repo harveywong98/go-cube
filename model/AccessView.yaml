@@ -515,7 +515,7 @@ cube:
       title: 应用描述
 
     appName:
-      sql: multiIf(arrayExists(x -> position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x -> position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x -> startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x -> startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*'))[2],host)
+      sql: multiIf(arrayExists(x -> position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x -> position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x -> startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x -> startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*'))[2],host)
       type: string
       title: 应用
 
@@ -926,17 +926,17 @@ cube:
       title: 访客数
 
     uniqApiCount:
-      sql: uniqIf(multiIf(arrayExists(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*'))[2],host), method, multiIf(url_route!='',url_route,countSubstrings(url,'/')<2,url,arrayStringConcat(arrayMap(x->if(countMatches(x,'[0-9a-fA-F-]')>0.8*length(x),'{parameter}',x),splitByChar('/',url)),'/')), url_action[2]='api')
+      sql: uniqIf(multiIf(arrayExists(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*'))[2],host), method, multiIf(url_route!='',url_route,countSubstrings(url,'/')<2,url,arrayStringConcat(arrayMap(x->if(countMatches(x,'[0-9a-fA-F-]')>0.8*length(x),'{parameter}',x),splitByChar('/',url)),'/')), url_action[2]='api')
       type: number
       title: API数
 
     uniqAppCount:
-      sql: uniq(multiIf(arrayExists(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*'))[2],host))
+      sql: uniq(multiIf(arrayExists(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*'))[2],host))
       type: number
       title: APP数
 
     uniqAppArray:
-      sql: groupUniqArray(multiIf(arrayExists(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\\\d+$',assumeNotNull(host))[1]||':*'))[2],host))
+      sql: groupUniqArray(multiIf(arrayExists(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host))),arrayFirst(x->position(assumeNotNull(url),'/')!=1 or startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',assumeNotNull(host)))[2],arrayExists(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*')),arrayFirst(x->startsWith(assumeNotNull(url),x[1]),dictGet('host_dict','info',splitByRegexp(':\\d+$',assumeNotNull(host))[1]||':*'))[2],host))
       type: string
       title: APP列表
 

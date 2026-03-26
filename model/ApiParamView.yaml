@@ -1,0 +1,45 @@
+cube:
+  name: ApiParamView
+  # 自动参数推荐：将请求Header/Cookie/Body中出现次数最多的参数路径进行聚合推荐。
+  # org过滤已内嵌在子查询SQL中，segment org为空占位。
+  sql: |
+    SELECT
+        arrayJoin(arrayConcat(
+            arrayMap(x -> if(startsWith(x, 'Cookie'), replaceAll(x, '.', '/'), 'Headers/' || replaceAll(x, '.', '/') || '/0'), JSONExtractKeys(assumeNotNull(req_head))),
+            arrayMap(x -> concat('Body/', replaceRegexpAll(replaceAll(x, '.', '/'), '\[\d+\]', '/0'), if(JSONType(req_body, x) = 'Array', '/0', '')), JSONExtractKeys(assumeNotNull(req_body)))
+        )) AS path,
+        '' AS key,
+        count() AS count
+    FROM (
+        SELECT req_head, req_body
+        FROM access
+        WHERE org = ''
+          AND ts > now() - 3600
+          AND (req_head <> '' OR req_body <> '')
+        ORDER BY ts DESC
+        LIMIT 10000
+    )
+    GROUP BY path
+    HAVING length(path) <= 70
+    UNION ALL
+    SELECT arrayJoin(['Path', 'Host', 'Method', 'Query']) AS path, '' AS key, 1 AS count
+
+  segments:
+    org:
+      sql: "1=1"
+
+  dimensions:
+    key:
+      sql: key
+      type: string
+      title: 参数键
+
+    path:
+      sql: path
+      type: string
+      title: 参数路径
+
+    rank:
+      sql: count
+      type: number
+      title: 出现次数

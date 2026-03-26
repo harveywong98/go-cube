@@ -1,0 +1,68 @@
+cube:
+  name: ApiBodyView
+  sql_table: default.access_sample_raw
+
+  segments:
+    org:
+      sql: org = ''
+
+  dimensions:
+    ts:
+      sql: ts
+      type: time
+      title: 时间
+
+    firstTs:
+      sql: first_ts
+      type: time
+      title: 首次时间
+
+    id:
+      sql: cityHash64(method, host, url)
+      type: string
+      title: ID
+
+    request:
+      sql: "if(substr(JSONExtractString(req,'Method'),-3) IN ['C2S','S2C','TCP','WS'], jsonMergePatch(req, toJSONString(map('Body', tryBase64Decode(JSONExtractString(req, 'Body'))))), req)"
+      type: string
+      title: 请求报文
+
+    response:
+      sql: res
+      type: string
+      title: 响应报文
+
+    urlRoute:
+      sql: url
+      type: string
+      title: URL路由
+
+    host:
+      sql: host
+      type: string
+      title: 域名
+
+    method:
+      sql: method
+      type: string
+      title: 请求方式
+
+    channel:
+      sql: channel
+      type: string
+      title: 应用
+
+    appName:
+      sql: "multiIf(arrayExists(x -> position(assumeNotNull(url), '/') != 1 or startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', assumeNotNull(host))), arrayFirst(x -> position(assumeNotNull(url), '/') != 1 or startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', assumeNotNull(host)))[2], arrayExists(x -> startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*')), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*'))[2], host)"
+      type: string
+      title: 应用名称
+
+    api:
+      sql: "method || ' ' || host || url"
+      type: string
+      title: API
+
+    hostUrl:
+      sql: "host || url"
+      type: string
+      title: 域名+URL

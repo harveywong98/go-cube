@@ -1,0 +1,82 @@
+cube:
+  name: UserAuthView
+  sql_table: user_auth
+
+  segments:
+    org:
+      sql: org = ''
+
+    confFilter:
+      sql: "concat(multiIf(notEmpty(dictGet(host_dict, 'info', assumeNotNull(host))), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', assumeNotNull(host)))[2], notEmpty(dictGet(host_dict, 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*')), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*'))[2], host), url, login_auth_key) not in (SELECT concat(host, url, auth_key) AS c FROM postgres.api_token_configs WHERE type = '3' OR type = '2')"
+
+  dimensions:
+    host:
+      sql: host
+      type: string
+      title: 域名
+
+    method:
+      sql: method
+      type: string
+      title: 请求方式
+
+    url:
+      sql: url
+      type: string
+      title: URL
+
+    appName:
+      sql: "multiIf(notEmpty(dictGet(host_dict, 'info', assumeNotNull(host))), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', assumeNotNull(host)))[2], notEmpty(dictGet(host_dict, 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*')), arrayFirst(x -> startsWith(assumeNotNull(url), x[1]), dictGet(host_dict, 'info', splitByRegexp(':\\d+$', assumeNotNull(host))[1] || ':*'))[2], host)"
+      type: string
+      title: 应用名称
+
+    loginTokenKey:
+      sql: login_auth_key
+      type: string
+      title: 登录Token键
+
+    lastTs:
+      sql: last_ts
+      type: time
+      title: 最近时间
+
+  measures:
+    basInfo:
+      sql: argMax(info, info.1)
+      type: string
+      title: 基础信息
+
+    loginTs:
+      sql: argMax(info, info.1).1
+      type: time
+      title: 登录时间
+
+    loginId:
+      sql: argMax(info, info.1).2
+      type: string
+      title: 登录ID
+
+    loginKey:
+      sql: argMax(info, info.1).3
+      type: string
+      title: 登录Token
+
+    loginReqInfo:
+      sql: argMax(info, info.1).4
+      type: string
+      title: 登录请求信息
+
+    loginResInfo:
+      sql: argMax(info, info.1).5
+      type: string
+      title: 登录响应信息
+
+    piiCount:
+      sql: sum(pii_count)
+      type: number
+      title: 隐私数据次数
+
+    count:
+      sql: sum(count)
+      type: number
+      title: 访问次数
