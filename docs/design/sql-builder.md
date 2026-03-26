@@ -58,8 +58,18 @@ segments 直接将 `segment.SQL` 追加到 WHERE，无参数绑定。
 
 ### ORDER BY
 
+**显式排序**：请求携带 `order` 字段时，按其指定的成员和方向生成 ORDER BY。
 granularity 时间维度的排序使用截断表达式（如 `toStartOfMinute(ts)`）而非原始列名。
 实现上通过 `granByDim map[string]granularityCol`（key = `td.Dimension`）在函数入口一次性计算，SELECT / GROUP BY / ORDER BY 三处共用，避免重复解析。
+
+**隐式排序**（兼容 CubeJS 默认行为）：`order` 为空且请求包含带 granularity 的时间维度时，自动按 `timeDimensions` 中第一个有粒度的维度 **ASC** 排序：
+
+```sql
+-- 示例：granularity = "minute"，无 order 字段
+ORDER BY toStartOfMinute(ts) ASC
+```
+
+这与 CubeJS 的隐式排序规则一致（第一个带粒度的时间维度升序），解决前端图表 x 轴时间乱序问题。若不希望隐式排序，需显式传入 `order: []`（空数组）—— 但当前实现会将空数组解析为 0 个 OrderItem，与未传 order 等价，即无法通过空数组关闭隐式排序（CubeJS 完整语义，此处简化处理）。
 
 ## 参数绑定与顺序保证
 

@@ -347,6 +347,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 	params = append(whereParams, havingParams...)
 
 	// ORDER BY
+	// 如果显式指定了排序，按请求排序；否则若存在带粒度的时间维度，隐式升序（兼容 CubeJS 默认行为）
 	if len(req.Order) > 0 {
 		sql.WriteString(" ORDER BY ")
 		for i, item := range req.Order {
@@ -365,6 +366,16 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			}
 			if item.Direction == "desc" {
 				sql.WriteString(" DESC")
+			}
+		}
+	} else if len(granByDim) > 0 {
+		// 隐式排序：取第一个带粒度的时间维度，按 timeDimensions 顺序确定
+		for _, td := range req.TimeDimensions {
+			if gc, ok := granByDim[td.Dimension]; ok {
+				sql.WriteString(" ORDER BY ")
+				sql.WriteString(gc.expr)
+				sql.WriteString(" ASC")
+				break
 			}
 		}
 	}
