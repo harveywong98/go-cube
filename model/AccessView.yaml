@@ -730,9 +730,9 @@ cube:
 
   segments:
     org:
-      sql: org = ''
+      sql: "org = {vars.org}"
     black:
-      sql: 1=1 # Placeholder
+      sql: "concat(host, url) NOT IN ({vars.api_exact}) AND NOT multiMatchAny(concat(host, url), [{vars.api_regex}])"
     riskConfirmed:
       sql: 1=1 # Placeholder - requires custom dim filter
     riskNotConfirmed:

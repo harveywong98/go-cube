@@ -31,14 +31,18 @@ func Init(hosts []string, database, username, password string, queryTimeout ...t
 	return nil
 }
 
-// Load executes a query using the global Handler. query is a JSON string.
-func Load(ctx context.Context, query string) (*QueryResponse, error) {
+// Load 使用全局 Handler 执行查询，query 为 JSON 字符串。
+// 可选 vars 用于注入 SQL 模板变量，如 {"org": ["t1"]} 替换 {vars.org}。
+func Load(ctx context.Context, query string, vars ...map[string][]string) (*QueryResponse, error) {
 	if defaultHandler == nil {
 		return nil, fmt.Errorf("go-cube: call Init before Load")
 	}
 	req, err := parseQueryRequest([]byte(query))
 	if err != nil {
 		return nil, err
+	}
+	if len(vars) > 0 {
+		req.Vars = vars[0]
 	}
 	return defaultHandler.Query(ctx, req)
 }

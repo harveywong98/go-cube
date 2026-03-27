@@ -24,8 +24,8 @@ func testCube() *model.Cube {
 			"count": {SQL: "count()", Type: "number"},
 		},
 		Segments: map[string]model.Segment{
-			"org":   {SQL: "org = '1'"},
-			"black": {SQL: "black = 1"},
+			"org":   {SQL: "org = {vars.org}"},
+			"black": {SQL: "concat(host, url) NOT IN ({vars.api_exact}) AND NOT multiMatchAny(concat(host, url), [{vars.api_regex}])"},
 		},
 	}
 }
@@ -263,7 +263,8 @@ func TestBuildQuery_TimeDimensionLastMonth(t *testing.T) {
 func TestBuildQuery_Segments(t *testing.T) {
 	req := &QueryRequest{
 		Dimensions: []string{"AccessView.id"},
-		Segments:   []string{"AccessView.org", "AccessView.black"},
+		Segments:   []string{"AccessView.org"},
+		Vars:       map[string][]string{"org": {"tenant_abc"}},
 	}
 
 	sql, params, err := BuildQuery(req, testCube())
@@ -273,11 +274,98 @@ func TestBuildQuery_Segments(t *testing.T) {
 	if len(params) != 0 {
 		t.Errorf("expected no params, got %v", params)
 	}
-	if !contains(sql, "org = '1'") {
-		t.Errorf("expected org segment SQL, got: %s", sql)
+	if !contains(sql, "PREWHERE") {
+		t.Errorf("expected PREWHERE clause, got: %s", sql)
 	}
-	if !contains(sql, "black = 1") {
-		t.Errorf("expected black segment SQL, got: %s", sql)
+	if !contains(sql, "org = 'tenant_abc'") {
+		t.Errorf("expected org segment in PREWHERE with var substituted, got: %s", sql)
+	}
+}
+
+func TestBuildQuery_BlackSegment(t *testing.T) {
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.id"},
+		Segments:   []string{"AccessView.black"},
+		Vars: map[string][]string{
+			"api_exact": {"host1/api/v1", "host2/api/v2"},
+			"api_regex": {"\\.php$", "^/admin/.*"},
+		},
+	}
+
+	sql, _, err := BuildQuery(req, testCube())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(sql, "PREWHERE") {
+		t.Errorf("expected PREWHERE clause, got: %s", sql)
+	}
+	if !contains(sql, "concat(host, url) NOT IN ('host1/api/v1','host2/api/v2')") {
+		t.Errorf("expected exact list quoted in NOT IN, got: %s", sql)
+	}
+	if !contains(sql, "multiMatchAny(concat(host, url), ['\\.php$','^/admin/.*'])") {
+		t.Errorf("expected regex list quoted in multiMatchAny, got: %s", sql)
+	}
+}
+
+func TestBuildQuery_BlackSegmentEmpty(t *testing.T) {
+	// 空 slice 时降级为 1=1，不产生非法 SQL
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.id"},
+		Segments:   []string{"AccessView.black"},
+		Vars: map[string][]string{
+			"api_exact": {},
+			"api_regex": {},
+		},
+	}
+
+	sql, _, err := BuildQuery(req, testCube())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(sql, "1=1") {
+		t.Errorf("expected 1=1 fallback for empty vars, got: %s", sql)
+	}
+	if contains(sql, "NOT IN ()") || contains(sql, "multiMatchAny(concat") {
+		t.Errorf("should not produce invalid SQL for empty lists, got: %s", sql)
+	}
+}
+
+func TestBuildQuery_SegmentsNoVars(t *testing.T) {
+	// 没有传 Vars 时，含占位符的 segment 被跳过，不生成 PREWHERE
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.id"},
+		Segments:   []string{"AccessView.org"},
+	}
+
+	sql, _, err := BuildQuery(req, testCube())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if contains(sql, "PREWHERE") {
+		t.Errorf("expected no PREWHERE when vars not provided, got: %s", sql)
+	}
+	if contains(sql, "{vars.org}") {
+		t.Errorf("unresolved placeholder should not appear in SQL, got: %s", sql)
+	}
+}
+
+func TestBuildQuery_SegmentVarsSQLInjection(t *testing.T) {
+	// 单引号应被转义，防止 SQL 注入
+	req := &QueryRequest{
+		Dimensions: []string{"AccessView.id"},
+		Segments:   []string{"AccessView.org"},
+		Vars:       map[string][]string{"org": {"evil' OR '1'='1"}},
+	}
+
+	sql, _, err := BuildQuery(req, testCube())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if contains(sql, "evil' OR") {
+		t.Errorf("SQL injection not escaped, got: %s", sql)
+	}
+	if !contains(sql, "evil'' OR") {
+		t.Errorf("expected escaped single quotes, got: %s", sql)
 	}
 }
 

@@ -20,6 +20,9 @@ type QueryRequest struct {
 	Segments       []string        `json:"segments"`
 	Timezone       string          `json:"timezone"`
 	Mask           bool            `json:"-"`
+	// Vars 供调用方注入模板变量，不经 HTTP 传递。
+	// 键值对替换 SQL 中的 {vars.key} 占位符。
+	Vars map[string][]string `json:"-"`
 }
 
 // DateRange 支持字符串或字符串数组格式
@@ -209,7 +212,8 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 	fromSQL := cube.GetSQLTable()
 	sql.WriteString(" FROM ")
 
-	// WHERE / HAVING
+	// PREWHERE / WHERE / HAVING
+	var prewhere []string
 	var where []string
 	var having []string
 
@@ -220,11 +224,38 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		return ok
 	}
 
-	// segments
+	// applyVars 替换 SQL 模板中的 {vars.key}，每个值加单引号并转义；空 slice 降级 1=1。
+	// 替换后仍有未解析占位符（含 vars 为空）时返回 ""，调用方跳过该 segment。
+	applyVars := func(tmpl string) string {
+		for k, vals := range req.Vars {
+			ph := "{vars." + k + "}"
+			if !strings.Contains(tmpl, ph) {
+				continue
+			}
+			if len(vals) == 0 {
+				return "1=1"
+			}
+			quoted := make([]string, len(vals))
+			for i, v := range vals {
+				quoted[i] = "'" + strings.ReplaceAll(v, "'", "''") + "'"
+			}
+			tmpl = strings.ReplaceAll(tmpl, ph, strings.Join(quoted, ","))
+		}
+		if strings.Contains(tmpl, "{vars.") {
+			return ""
+		}
+		return tmpl
+	}
+
+	// segments 全部走 PREWHERE，applyVars 返回空串时跳过
 	for _, seg := range req.Segments {
 		_, segName, _ := splitMemberName(seg)
-		if s, ok := cube.Segments[segName]; ok && s.SQL != "" {
-			where = append(where, s.SQL)
+		s, ok := cube.Segments[segName]
+		if !ok || s.SQL == "" {
+			continue
+		}
+		if result := applyVars(s.SQL); result != "" {
+			prewhere = append(prewhere, result)
 		}
 	}
 
@@ -306,6 +337,11 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		fromSQL = strings.ReplaceAll(fromSQL, placeholder, "1=1")
 	}
 	sql.WriteString(fromSQL)
+
+	if len(prewhere) > 0 {
+		sql.WriteString(" PREWHERE ")
+		sql.WriteString(strings.Join(prewhere, " AND "))
+	}
 
 	if len(where) > 0 {
 		sql.WriteString(" WHERE ")
