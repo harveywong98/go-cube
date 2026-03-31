@@ -147,6 +147,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 
 	var sql strings.Builder
 	var params []interface{}
+	var fromParams []interface{}
 	var whereParams []interface{}
 	var havingParams []interface{}
 
@@ -331,8 +332,9 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			// 同步替换子查询中的占位符（使用原始列名而非 dimension SQL 表达式）
 			placeholder := "{filter." + fieldName + "}"
 			if strings.Contains(fromSQL, placeholder) {
-				subClause, _ := buildTimeDimensionClause(fieldName, td.DateRange)
+				subClause, subParams := buildTimeDimensionClause(fieldName, td.DateRange)
 				fromSQL = strings.ReplaceAll(fromSQL, placeholder, subClause)
+				fromParams = append(fromParams, subParams...)
 			}
 		}
 	}
@@ -377,8 +379,10 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		sql.WriteString(strings.Join(having, " AND "))
 	}
 
-	// params: WHERE params first, then HAVING params — must match ? placeholder order in SQL
-	params = append(whereParams, havingParams...)
+	// params: FROM params first (subquery placeholders), then WHERE, then HAVING
+	// — must match ? placeholder order in generated SQL
+	params = append(fromParams, whereParams...)
+	params = append(params, havingParams...)
 
 	// ORDER BY
 	// 如果显式指定了排序，按请求排序；否则若存在带粒度的时间维度，隐式升序（兼容 CubeJS 默认行为）

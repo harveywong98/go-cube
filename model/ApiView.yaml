@@ -117,7 +117,7 @@ cube:
       title: 应用部门
     
     isFavorite:
-      sql: "0"
+      sql: "if((select count() from postgres.configs where (type = 'appName_filter' or type = 'appName_filter_regex') and name = 'favorite_app' and coalesce(org_id, '') = '' and (JSONExtractString(config, 'view') = 'ApiView' or JSONExtractString(config, 'view') = 'All') and (empty(JSONExtractString(config, 'expireTime')) OR JSONExtractString(config, 'expireTime') > toString(toUnixTimestamp(now())))) < 1, 0, app_name in (select JSONExtractString(config, 'appName') from postgres.configs where type = 'appName_filter' and name = 'favorite_app' and coalesce(org_id, '') = '' and (JSONExtractString(config, 'view') = 'ApiView' or JSONExtractString(config, 'view') = 'All') and (empty(JSONExtractString(config, 'expireTime')) OR JSONExtractString(config, 'expireTime') > toString(toUnixTimestamp(now())))) or multiMatchAny(app_name, (select groupArray(JSONExtractString(config, 'appName')) from postgres.configs where type = 'appName_filter_regex' and name = 'favorite_app' and coalesce(org_id, '') = '' and (JSONExtractString(config, 'view') = 'ApiView' or JSONExtractString(config, 'view') = 'All') and (empty(JSONExtractString(config, 'expireTime')) OR JSONExtractString(config, 'expireTime') > toString(toUnixTimestamp(now()))))))"
       type: number
       title: 已关注
     

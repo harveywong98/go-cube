@@ -73,6 +73,13 @@ result=$(curl -s "$BASE/load?query=%7B%22renewQuery%22%3Atrue%2C%22measures%22%3
 echo "Raw: $result"
 check "ApiView 功能分组列表" "$result"
 
+echo "" 
+echo "=== 8. ApiView 应用列表 ==="
+#{"renewQuery":false,"measures":["ApiView.allCount","ApiView.uniqApiCount","ApiView.uniqWeakApiCount","ApiView.uniqApiRespSensCount","ApiView.hourCountArray","ApiView.daySum","ApiView.successSum","ApiView.hostSet","ApiView.autoTopoNetwork","ApiView.aggSensScore","ApiView.autoTitleSetStr","ApiView.autoLogo"],"timeDimensions":[{"dimension":"ApiView.ts","dateRange":["2026-03-30 00:00:00","2026-03-30 23:59:59"]}],"order":{"ApiView.isFavorite":"desc","ApiView.daySum":"desc"},"filters":[{"member":"ApiView.topoNetwork","operator":"notEquals","values":["外发"]}],"dimensions":["ApiView.appId","ApiView.appName","ApiView.dctSection","ApiView.isFavorite"],"segments":["ApiView.org","ApiView.black","ApiView.onePerDay"],"timezone":"Asia/Shanghai"}
+result=$(curl -s "$BASE/load?query=%7B%22renewQuery%22%3Afalse%2C%22measures%22%3A%5B%22ApiView.allCount%22%2C%22ApiView.uniqApiCount%22%2C%22ApiView.uniqWeakApiCount%22%2C%22ApiView.uniqApiRespSensCount%22%2C%22ApiView.hourCountArray%22%2C%22ApiView.daySum%22%2C%22ApiView.successSum%22%2C%22ApiView.hostSet%22%2C%22ApiView.autoTopoNetwork%22%2C%22ApiView.aggSensScore%22%2C%22ApiView.autoTitleSetStr%22%2C%22ApiView.autoLogo%22%5D%2C%22timeDimensions%22%3A%5B%7B%22dimension%22%3A%22ApiView.ts%22%2C%22dateRange%22%3A%5B%222026-03-30%2000%3A00%3A00%22%2C%222026-03-31%2000%3A00%3A00%22%5D%7D%5D%2C%22order%22%3A%7B%22ApiView.isFavorite%22%3A%22desc%22%2C%22ApiView.daySum%22%3A%22desc%22%7D%2C%22filters%22%3A%5B%7B%22member%22%3A%22ApiView.topoNetwork%22%2C%22operator%22%3A%22notEquals%22%2C%22values%22%3A%5B%22%E5%A4%96%E5%8F%91%22%5D%7D%5D%2C%22dimensions%22%3A%5B%22ApiView.appId%22%2C%22ApiView.appName%22%2C%22ApiView.dctSection%22%2C%22ApiView.isFavorite%22%5D%2C%22segments%22%3A%5B%22ApiView.org%22%2C%22ApiView.black%22%2C%22ApiView.onePerDay%22%5D%2C%22timezone%22%3A%22Asia%2FShanghai%22%7D&queryType=multi")
+echo "Raw: $result"
+check "ApiView 应用列表" "$result"
+
 echo ""
 echo "========================================"
 echo "Results: $pass passed, $fail failed"
