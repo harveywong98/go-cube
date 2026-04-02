@@ -28,6 +28,8 @@ type QueryRequest struct {
 // DateRange 支持字符串或字符串数组格式
 type DateRange struct{ V interface{} }
 
+func (dr DateRange) MarshalJSON() ([]byte, error) { return json.Marshal(dr.V) }
+
 func (dr *DateRange) UnmarshalJSON(data []byte) error {
 	var arr []string
 	if json.Unmarshal(data, &arr) == nil {
