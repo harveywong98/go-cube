@@ -31,6 +31,19 @@ type Segment struct {
 	Title string `yaml:"title,omitempty"`
 }
 
+// Annotatable 表示可被 annotation 描述的 cube 成员。
+type Annotatable interface {
+	MemberTitle() string
+	MemberType() string
+}
+
+func (d Dimension) MemberTitle() string { return d.Title }
+func (d Dimension) MemberType() string  { return d.Type }
+func (m Measure) MemberTitle() string   { return m.Title }
+func (m Measure) MemberType() string    { return m.Type }
+func (s Segment) MemberTitle() string   { return s.Title }
+func (s Segment) MemberType() string    { return "" }
+
 // GetField 查找维度或度量字段，subKey 非空时将 SQL 模板中的 {key} 替换为 subKey。
 func (c *Cube) GetField(name string, subKey string) (Field, bool) {
 	if dim, ok := c.Dimensions[name]; ok {

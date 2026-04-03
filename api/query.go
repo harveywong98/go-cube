@@ -134,77 +134,36 @@ type MemberAnnotation struct {
 	Type       string `json:"type,omitempty"`
 }
 
+// annotateMembers 为一组成员名构建 annotation map。
+func annotateMembers[T model.Annotatable](names []string, members map[string]T) map[string]MemberAnnotation {
+	out := make(map[string]MemberAnnotation, len(names))
+	for _, name := range names {
+		_, fieldName, _ := splitMemberName(name)
+		m, ok := members[fieldName]
+		if !ok {
+			continue
+		}
+		short := m.MemberTitle()
+		if short == "" {
+			short = fieldName
+		}
+		out[name] = MemberAnnotation{Title: short, ShortTitle: short, Type: m.MemberType()}
+	}
+	return out
+}
+
 // buildAnnotation 根据请求和 cube 模型构建 annotation 元数据。
-// shortTitle 取 YAML 中的 title，未定义则用字段 key 名。
 func buildAnnotation(req *QueryRequest, cube *model.Cube) Annotation {
-	a := Annotation{
-		Measures:       make(map[string]MemberAnnotation),
-		Dimensions:     make(map[string]MemberAnnotation),
-		Segments:       make(map[string]MemberAnnotation),
-		TimeDimensions: make(map[string]MemberAnnotation),
+	tdNames := make([]string, len(req.TimeDimensions))
+	for i, td := range req.TimeDimensions {
+		tdNames[i] = td.Dimension
 	}
-
-	for _, name := range req.Dimensions {
-		_, fieldName, _ := splitMemberName(name)
-		if dim, ok := cube.Dimensions[fieldName]; ok {
-			short := dim.Title
-			if short == "" {
-				short = fieldName
-			}
-			a.Dimensions[name] = MemberAnnotation{
-				Title:      short,
-				ShortTitle: short,
-				Type:       dim.Type,
-			}
-		}
+	return Annotation{
+		Dimensions:     annotateMembers(req.Dimensions, cube.Dimensions),
+		Measures:       annotateMembers(req.Measures, cube.Measures),
+		Segments:       annotateMembers(req.Segments, cube.Segments),
+		TimeDimensions: annotateMembers(tdNames, cube.Dimensions),
 	}
-
-	for _, name := range req.Measures {
-		_, fieldName, _ := splitMemberName(name)
-		if m, ok := cube.Measures[fieldName]; ok {
-			short := m.Title
-			if short == "" {
-				short = fieldName
-			}
-			a.Measures[name] = MemberAnnotation{
-				Title:      short,
-				ShortTitle: short,
-				Type:       m.Type,
-			}
-		}
-	}
-
-	for _, name := range req.Segments {
-		_, segName, _ := splitMemberName(name)
-		if seg, ok := cube.Segments[segName]; ok {
-			short := seg.Title
-			if short == "" {
-				short = segName
-			}
-			a.Segments[name] = MemberAnnotation{
-				Title:      short,
-				ShortTitle: short,
-			}
-		}
-	}
-
-	for _, td := range req.TimeDimensions {
-		name := td.Dimension
-		_, fieldName, _ := splitMemberName(name)
-		if dim, ok := cube.Dimensions[fieldName]; ok {
-			short := dim.Title
-			if short == "" {
-				short = fieldName
-			}
-			a.TimeDimensions[name] = MemberAnnotation{
-				Title:      short,
-				ShortTitle: short,
-				Type:       dim.Type,
-			}
-		}
-	}
-
-	return a
 }
 
 // splitMemberName 将 "CubeName.fieldName" 或 "CubeName.fieldName.subKey" 拆分为
