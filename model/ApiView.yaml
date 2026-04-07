@@ -180,10 +180,6 @@ cube:
       type: string
       title: 管理状态
     
-    webServerTypeTag:
-      sql: if(type='HTTP2/gRPC', 'gRPC', type)
-      type: string
-      title: 规范类型
     
     autoBizName:
       sql: if(url_action[2]='api' OR url_action[2]='auto', url_action[1], '')
@@ -487,11 +483,11 @@ cube:
       type: string
       title: 风险
 
-    # 注意: category 与 webServerTypeTag SQL 完全相同，均为 if(type='HTTP2/gRPC', 'gRPC', type)
-    # category 是前端 filter 使用的别名，webServerTypeTag 是展示用的别名
+    # category 与原 webServerTypeTag 含义相同，统一使用 category
     category:
       sql: if(type='HTTP2/gRPC', 'gRPC', type)
       type: string
+      title: 规范类型
 
     # metricTag 内联了 timeAvg 和 lengthAvg 的完整 SQL（go-cube 不支持 dimension 引用）
     metricTag:
