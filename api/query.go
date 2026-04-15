@@ -207,23 +207,6 @@ func buildTimeDimensionClause(colSQL string, dr DateRange) string {
 	return ""
 }
 
-// isSafeTimeDimensionPrewhere reports whether a time dimension clause can be
-// routed to PREWHERE. Keep this intentionally conservative: only physical-table
-// cubes with plain time dimensions are eligible.
-func isSafeTimeDimensionPrewhere(cube *model.Cube, field model.Field) bool {
-	if cube == nil || cube.SQL != "" || cube.SQLTable == "" {
-		return false
-	}
-	if field.Type != "time" || field.SQL == "" {
-		return false
-	}
-	lowerSQL := strings.ToLower(field.SQL)
-	if strings.Contains(lowerSQL, "arrayjoin") {
-		return false
-	}
-	return true
-}
-
 func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, error) {
 	mask := req.Mask
 
@@ -295,8 +278,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 
 	sql.WriteString(" FROM ")
 
-	// PREWHERE / WHERE / HAVING
-	var prewhere []string
+	// WHERE / HAVING
 	var where []string
 	var having []string
 
@@ -383,7 +365,6 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		}
 		fromSQL = applyVars(t)
 	}
-	// isSubquery: cube 使用子查询时，segment 不能放 PREWHERE（仅物理表支持）
 	isSubquery := cube.SQL != ""
 	for _, seg := range req.Segments {
 		_, segName, _ := splitMemberName(seg)
@@ -395,11 +376,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			continue
 		}
 		if result := applyVars(s.SQL); result != "" {
-			if isSubquery {
-				where = append(where, result)
-			} else {
-				prewhere = append(prewhere, result)
-			}
+			where = append(where, result)
 		}
 	}
 
@@ -453,7 +430,7 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 		}
 	}
 
-	// timeDimensions: 对安全的物理表时间维度下推到 PREWHERE，其余保留在 WHERE。
+	// timeDimensions: 统一追加到 WHERE，避免与复杂 segment 形成病理 PREWHERE 路径。
 	for _, td := range req.TimeDimensions {
 		_, fieldName, subKey := splitMemberName(td.Dimension)
 		field, ok := cube.GetField(fieldName, subKey)
@@ -461,19 +438,10 @@ func BuildQuery(req *QueryRequest, cube *model.Cube) (string, []interface{}, err
 			continue
 		}
 		if clause := buildTimeDimensionClause(field.SQL, td.DateRange); clause != "" {
-			if isSafeTimeDimensionPrewhere(cube, field) {
-				prewhere = append(prewhere, clause)
-			} else {
-				where = append(where, clause)
-			}
+			where = append(where, clause)
 		}
 	}
 	sql.WriteString(fromSQL)
-
-	if len(prewhere) > 0 {
-		sql.WriteString(" PREWHERE ")
-		sql.WriteString(strings.Join(prewhere, " AND "))
-	}
 
 	if len(where) > 0 {
 		sql.WriteString(" WHERE ")

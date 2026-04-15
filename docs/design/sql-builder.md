@@ -10,8 +10,7 @@ QueryRequest (CubeJS JSON)
 BuildQuery
     ├── SELECT   dimensions + measures + granularity 截断列
     ├── FROM     cube.GetSQLTable()，支持 {filter.<field>} 占位符替换
-    ├── PREWHERE segments + 安全可下推的 timeDimensions（仅物理表）
-    ├── WHERE    filters(dimension 字段) + 其余 timeDimensions
+    ├── WHERE    segments + filters(dimension 字段) + timeDimensions
     ├── GROUP BY ungrouped=false 且有 dimensions 或 granularity 时生成，使用 field.SQL（非别名）
     ├── HAVING   filters(measure 字段)
     ├── ORDER BY 支持 granularity 表达式，查 granByDim map
@@ -49,9 +48,15 @@ toStartOfMinute(ts) AS "AccessView.ts.minute"
 
 OR 复合条件：任一子条件是 measure 则整体走 HAVING。
 
-segments 在物理表 cube 上追加到 `PREWHERE`；子查询 cube 上退回 `WHERE`，无参数绑定。
+builder 不再自动生成 `PREWHERE`。
 
-timeDimensions 默认生成时间范围条件。若满足“物理表 + `time` 字段 + 非 `arrayJoin` 表达式”的保守规则，则下推到 `PREWHERE`；否则保留在 `WHERE`。
+以下来源统一追加到 `WHERE`：
+
+- segments
+- dimension filters
+- timeDimensions
+
+若 cube 自身的 `sql` / `sql_table` 中显式写了 `PREWHERE`，builder 不改写这段 SQL；它只继续执行 `{vars.xxx}` / `{filter.xxx}` 占位符替换。
 
 ### GROUP BY
 
