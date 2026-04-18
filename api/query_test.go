@@ -1292,3 +1292,114 @@ func TestRiskView_StatusFilter_Segment(t *testing.T) {
 		t.Errorf("expected statusFilter SQL in WHERE, got: %s", sql)
 	}
 }
+
+// ---------- Search-Target / offline table switching ----------
+
+// accessViewYAML 是测试用的 AccessView 模型定义（含 taskId 字段）。
+const accessViewYAML = `cube:
+  name: AccessView
+  sql_table: default.access
+  dimensions:
+    id:
+      sql: id
+      type: string
+    taskId:
+      sql: task_id
+      type: string
+  measures:
+    count:
+      sql: count()
+      type: number
+`
+
+// newTestHandler 创建一个使用假 ClickHouse 的 Handler，返回 handler 和捕获 SQL 的指针。
+func newTestHandler(t *testing.T) (*Handler, *string) {
+	t.Helper()
+	modelFS := fstest.MapFS{
+		"AccessView.yaml": &fstest.MapFile{Data: []byte(accessViewYAML)},
+	}
+	var captured string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		captured = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	host := strings.TrimPrefix(server.URL, "http://")
+	chClient, err := sql.NewClient(&config.ClickHouseConfig{
+		Hosts:        []string{host},
+		Database:     "default",
+		QueryTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("create clickhouse client: %v", err)
+	}
+	return &Handler{modelLoader: model.NewLoader(modelFS), chClient: chClient}, &captured
+}
+
+func TestHandleLoad_SearchTargetOffline_SwitchesTable(t *testing.T) {
+	h, captured := newTestHandler(t)
+
+	body := `{"dimensions":["AccessView.id","AccessView.taskId"],"limit":1}`
+	req := httptest.NewRequest(http.MethodPost, "/load", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Search-Target", "offline")
+	rr := httptest.NewRecorder()
+	h.HandleLoad(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !contains(*captured, "default.access_offline_local") {
+		t.Errorf("expected access_offline_local table, got: %s", *captured)
+	}
+	if !contains(*captured, "task_id") {
+		t.Errorf("expected task_id field in offline query, got: %s", *captured)
+	}
+}
+
+func TestHandleLoad_NoSearchTarget_KeepsOriginalTable(t *testing.T) {
+	h, captured := newTestHandler(t)
+
+	body := `{"dimensions":["AccessView.id","AccessView.taskId"],"limit":1}`
+	req := httptest.NewRequest(http.MethodPost, "/load", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.HandleLoad(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if contains(*captured, "access_offline_local") {
+		t.Errorf("should NOT switch to offline table, got: %s", *captured)
+	}
+	if !contains(*captured, "default.access") {
+		t.Errorf("expected default.access table, got: %s", *captured)
+	}
+}
+
+func TestHandleLoad_OfflineDoesNotPolluteCache(t *testing.T) {
+	h, captured := newTestHandler(t)
+
+	// 先请求 offline
+	body := `{"dimensions":["AccessView.id","AccessView.taskId"],"limit":1}`
+	req1 := httptest.NewRequest(http.MethodPost, "/load", strings.NewReader(body))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Search-Target", "offline")
+	rr1 := httptest.NewRecorder()
+	h.HandleLoad(rr1, req1)
+	if !contains(*captured, "access_offline_local") {
+		t.Fatalf("first request should use offline table, got: %s", *captured)
+	}
+
+	// 再请求普通模式，确认缓存没被污染
+	req2 := httptest.NewRequest(http.MethodPost, "/load", strings.NewReader(body))
+	req2.Header.Set("Content-Type", "application/json")
+	rr2 := httptest.NewRecorder()
+	h.HandleLoad(rr2, req2)
+	if contains(*captured, "access_offline_local") {
+		t.Errorf("second request should NOT use offline table (cache pollution), got: %s", *captured)
+	}
+}

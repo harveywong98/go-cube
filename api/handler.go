@@ -40,6 +40,14 @@ func (h *Handler) query(ctx context.Context, host string, req *QueryRequest) (*Q
 		return nil, err
 	}
 
+	// search-target=offline 时 AccessView 切换到 access_offline_local 表
+	if m.Name == "AccessView" {
+		if targets, ok := req.Vars["search_target"]; ok && len(targets) > 0 && targets[0] == "offline" {
+			m = m.Clone()
+			m.SQLTable = "default.access_offline_local"
+		}
+	}
+
 	query, params, err := BuildQuery(req, m)
 	if err != nil {
 		return nil, err
@@ -107,6 +115,9 @@ func (h *Handler) HandleLoad(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := r.Header.Get("X-Sw-Api-Regex"); v != "" {
 		vars["api_regex"] = strings.Split(v, ",")
+	}
+	if v := r.Header.Get("Search-Target"); v != "" {
+		vars["search_target"] = []string{v}
 	}
 	if len(vars) > 0 {
 		req.Vars = vars

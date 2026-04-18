@@ -86,6 +86,24 @@ func (c *Cube) GetSQLTable() string {
 	return ""
 }
 
+// Clone 返回 Cube 的独立副本，修改返回值不会影响缓存中的原始对象。
+func (c *Cube) Clone() *Cube {
+	cp := *c
+	cp.Dimensions = make(map[string]Dimension, len(c.Dimensions))
+	for k, v := range c.Dimensions {
+		cp.Dimensions[k] = v
+	}
+	cp.Measures = make(map[string]Measure, len(c.Measures))
+	for k, v := range c.Measures {
+		cp.Measures[k] = v
+	}
+	cp.Segments = make(map[string]Segment, len(c.Segments))
+	for k, v := range c.Segments {
+		cp.Segments[k] = v
+	}
+	return &cp
+}
+
 type Field struct {
 	Name    string
 	SQL     string
