@@ -28,7 +28,7 @@ cube:
     org:
       sql: ""
     black:
-      sql: ""
+      sql: "concat(host, url) NOT IN ({vars.api_exact}) AND NOT multiMatchAny(concat(host, url), [{vars.api_regex}])"
 
   dimensions:
     topoNetwork:
