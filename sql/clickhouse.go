@@ -36,9 +36,8 @@ func NewClient(cfg *config.ClickHouseConfig) (*Client, error) {
 	}, nil
 }
 
-// Query 执行 SQL。host 为空时使用默认地址；非空时替换目标节点，
-// host 可为纯 IP（默认追加 :8123）或 IP:port 格式。
-func (c *Client) Query(ctx context.Context, host, query string) ([]map[string]interface{}, error) {
+// newRequest 创建 ClickHouse HTTP 请求，复用 URL 拼接和认证逻辑。
+func (c *Client) newRequest(ctx context.Context, host, body string) (*http.Request, error) {
 	targetURL := c.url
 	if host != "" {
 		if !strings.Contains(host, ":") {
@@ -46,10 +45,23 @@ func (c *Client) Query(ctx context.Context, host, query string) ([]map[string]in
 		}
 		targetURL = "http://" + host + c.url[strings.Index(c.url, "?"):]
 	}
-	req, _ := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(query))
+	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
 	if c.user != "" {
 		req.Header.Set("X-ClickHouse-User", c.user)
 		req.Header.Set("X-ClickHouse-Key", c.key)
+	}
+	return req, nil
+}
+
+// Query 执行 SQL。host 为空时使用默认地址；非空时替换目标节点，
+// host 可为纯 IP（默认追加 :8123）或 IP:port 格式。
+func (c *Client) Query(ctx context.Context, host, query string) ([]map[string]interface{}, error) {
+	req, err := c.newRequest(ctx, host, query)
+	if err != nil {
+		return nil, err
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -67,4 +79,22 @@ func (c *Client) Query(ctx context.Context, host, query string) ([]map[string]in
 func (c *Client) Ping(ctx context.Context) error {
 	_, err := c.Query(ctx, "", "SELECT 1")
 	return err
+}
+
+// Exec 执行不需要返回数据的 SQL（如 INSERT）。
+func (c *Client) Exec(ctx context.Context, host, query string) error {
+	req, err := c.newRequest(ctx, host, query)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("clickhouse error (HTTP %d): %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
 }

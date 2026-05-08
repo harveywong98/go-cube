@@ -1423,3 +1423,99 @@ func TestHandleLoad_OfflineDoesNotPolluteCache(t *testing.T) {
 		t.Errorf("second request should NOT use offline table (cache pollution), got: %s", *captured)
 	}
 }
+
+func TestOfflineTrace(t *testing.T) {
+	// Mock ClickHouse: first request returns columns, second is INSERT
+	var requests []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		q := string(body)
+		requests = append(requests, q)
+
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(q, "system.columns") {
+			// 返回 access 表的列名
+			_, _ = w.Write([]byte(`{"data":[{"name":"id"},{"name":"ts"},{"name":"ip"}]}`))
+		} else {
+			// INSERT 不需要返回数据
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer server.Close()
+
+	host := strings.TrimPrefix(server.URL, "http://")
+	chClient, err := sql.NewClient(&config.ClickHouseConfig{
+		Hosts:        []string{host},
+		Database:     "default",
+		QueryTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("create clickhouse client: %v", err)
+	}
+
+	modelFS := fstest.MapFS{
+		"AccessView.yaml": &fstest.MapFile{Data: []byte(`cube:
+  name: AccessView
+  sql_table: default.access
+  dimensions:
+    id:
+      sql: id
+      type: string
+    ts:
+      sql: ts
+      type: time
+    ip:
+      sql: ip
+      type: string
+`)},
+	}
+
+	h := &Handler{
+		modelLoader:  model.NewLoader(modelFS),
+		chClient:     chClient,
+		queryTimeout: 5 * time.Second,
+	}
+	// 设置 defaultHandler 供 OfflineTrace 使用
+	oldHandler := defaultHandler
+	defaultHandler = h
+	defer func() { defaultHandler = oldHandler }()
+
+	queryJSON := []byte(`{
+		"dimensions": ["AccessView.id", "AccessView.ts", "AccessView.ip"],
+		"filters": [{"member": "AccessView.ip", "operator": "equals", "values": ["10.0.0.1"]}],
+		"limit": 100
+	}`)
+
+	ctx := t.Context()
+	err = OfflineTrace(ctx, "test-task-001", "test-org", false, "", "", "", queryJSON)
+	if err != nil {
+		t.Fatalf("OfflineTrace returned error: %v", err)
+	}
+
+	if len(requests) != 2 {
+		t.Fatalf("expected 2 requests to ClickHouse, got %d", len(requests))
+	}
+
+	// 第一条应该是查列名
+	if !strings.Contains(requests[0], "system.columns") {
+		t.Errorf("first request should query system.columns, got: %s", requests[0])
+	}
+
+	// 第二条应该是 INSERT
+	insertSQL := requests[1]
+	if !strings.Contains(insertSQL, "INSERT INTO access_offline_local") {
+		t.Errorf("expected INSERT INTO access_offline_local, got: %s", insertSQL)
+	}
+	if !strings.Contains(insertSQL, "task_id,task_ts,id,ts,ip") {
+		t.Errorf("expected column list with task_id,task_ts prefix, got: %s", insertSQL)
+	}
+	if !strings.Contains(insertSQL, "'test-task-001' AS task_id") {
+		t.Errorf("expected task_id value in SELECT, got: %s", insertSQL)
+	}
+	if !strings.Contains(insertSQL, "now() AS task_ts") {
+		t.Errorf("expected now() AS task_ts in SELECT, got: %s", insertSQL)
+	}
+	if !strings.Contains(insertSQL, "'10.0.0.1'") {
+		t.Errorf("expected filter param replaced, got: %s", insertSQL)
+	}
+}
