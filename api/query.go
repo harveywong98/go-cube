@@ -472,6 +472,8 @@ func buildQuery(req *QueryRequest, cube *model.Cube) (string, error) {
 		fmt.Fprintf(&sql, " OFFSET %d", req.Offset)
 	}
 
+	sql.WriteString(" SETTINGS priority = 1")
+
 	return sql.String(), nil
 }
 
