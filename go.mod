@@ -1,4 +1,4 @@
-module github.com/Servicewall/go-cube
+module github.com/harveywong98/go-cube
 
 go 1.24.1
 

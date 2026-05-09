@@ -6,7 +6,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/Servicewall/go-cube/model"
+	"github.com/harveywong98/go-cube/model"
 )
 
 type QueryRequest struct {

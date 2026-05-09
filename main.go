@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Servicewall/go-cube/api"
-	"github.com/Servicewall/go-cube/config"
-	"github.com/Servicewall/go-cube/model"
-	"github.com/Servicewall/go-cube/sql"
+	"github.com/harveywong98/go-cube/api"
+	"github.com/harveywong98/go-cube/config"
+	"github.com/harveywong98/go-cube/model"
+	"github.com/harveywong98/go-cube/sql"
 )
 
 func main() {

@@ -11,9 +11,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/Servicewall/go-cube/config"
-	"github.com/Servicewall/go-cube/model"
-	"github.com/Servicewall/go-cube/sql"
+	"github.com/harveywong98/go-cube/config"
+	"github.com/harveywong98/go-cube/model"
+	"github.com/harveywong98/go-cube/sql"
 )
 
 // testCube builds a minimal Cube fixture for unit tests.

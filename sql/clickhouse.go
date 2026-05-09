@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Servicewall/go-cube/config"
+	"github.com/harveywong98/go-cube/config"
 )
 
 type Client struct {

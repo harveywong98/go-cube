@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Servicewall/go-cube/model"
-	"github.com/Servicewall/go-cube/sql"
+	"github.com/harveywong98/go-cube/model"
+	"github.com/harveywong98/go-cube/sql"
 )
 
 type Handler struct {
