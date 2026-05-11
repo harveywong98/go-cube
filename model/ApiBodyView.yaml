@@ -1,6 +1,8 @@
 cube:
   name: ApiBodyView
-  sql_table: default.access_sample_raw
+  sql: SELECT org, ts, first_ts, req_key, req, res, url, host, method, channel FROM default.access_sample_raw FINAL
+       WHERE {filter.host} AND {filter.urlRoute} AND {filter.method}
+       ORDER BY first_ts DESC
 
   segments:
     org:
